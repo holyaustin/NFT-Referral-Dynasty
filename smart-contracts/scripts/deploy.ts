@@ -1,38 +1,49 @@
-import { ethers } from "hardhat";
+import { network } from "hardhat";
+
+const { ethers, networkName } = await network.connect();
 
 async function main() {
-  console.log("🚀 Deploying ReferralDynasty contract...");
+  console.log(`Deploying ReferralDynasty to ${networkName}...`);
 
-  const ReferralDynasty = await ethers.getContractFactory("ReferralDynasty");
-  const referralDynasty = await ReferralDynasty.deploy();
+  // Get the deployer address for logging
+  const [deployer] = await ethers.getSigners();
+  console.log("Deployer address:", deployer.address);
   
+  const balance = await ethers.provider.getBalance(deployer.address);
+  console.log("Balance:", ethers.formatEther(balance), "STT");
+
+  // Deploy contract using the helper
+  console.log("\n📄 Deploying contract...");
+  const referralDynasty = await ethers.deployContract("ReferralDynasty");
+
+  console.log("Waiting for the deployment tx to confirm");
   await referralDynasty.waitForDeployment();
-  
+
   const address = await referralDynasty.getAddress();
-  console.log("✅ ReferralDynasty deployed to:", address);
+  console.log("✅ ReferralDynasty address:", address);
   
-  // Verify contract on explorer (optional)
-  console.log("\n📝 Contract Address:", address);
-  console.log("🔗 Explorer URL:", `https://testnet.somnia.network/address/${address}`);
+  // Get deployment transaction
+  const deploymentTx = referralDynasty.deploymentTransaction();
+  console.log("Deployment Tx:", deploymentTx?.hash);
   
-  // Save deployment info
-  const fs = require("fs");
-  const deploymentInfo = {
-    contract: "ReferralDynasty",
-    address: address,
-    network: "somniaTestnet",
-    timestamp: new Date().toISOString()
-  };
+  // Set contract as trusted emitter for itself
+  console.log("\n🔧 Configuring contract...");
+  const setEmitterTx = await referralDynasty.setTrustedEmitter(address, true);
+  await setEmitterTx.wait();
+  console.log("✅ Contract set as trusted emitter");
+
+  console.log("\n📋 Deployment Summary:");
+  console.log("======================");
+  console.log("Network:", networkName);
+  console.log("Contract:", address);
+  console.log("Owner:", deployer.address);
+  console.log("Block:", await ethers.provider.getBlockNumber());
   
-  fs.writeFileSync(
-    "deployment.json",
-    JSON.stringify(deploymentInfo, null, 2)
-  );
-  
-  console.log("\n📄 Deployment info saved to deployment.json");
+  console.log("\n🔗 Explorer URL:", `https://testnet-explorer.somnia.network/address/${address}`);
+  console.log("\nDeployment successful!");
 }
 
 main().catch((error) => {
-  console.error(error);
+  console.error("❌ Deployment failed:", error);
   process.exitCode = 1;
 });
