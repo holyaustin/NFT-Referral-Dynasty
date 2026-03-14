@@ -4,6 +4,16 @@ This project showcases a Hardhat 3 Beta project using `mocha` for tests and the 
 
 To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
 
+
+# 📋 DEPLOYMENT SUMMARY
+====================
+UserRegistry     : 0xC9b6a1530d367cf377752139D246490753633C8a
+ReferralBadge    : 0x464Ed1fd9005cb44843CE6b1cB2026FB2cc0b908
+ReferralDynasty  : 0xbd3F45B20B7CAc3237F708fD4f456A041Fc3DCdD
+Badge owner      : 0xbd3F45B20B7CAc3237F708fD4f456A041Fc3DCdD
+Dynasty owner    : 0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16
+Trusted emitter  : true
+
 ## Project Overview
 
 This example project includes:
