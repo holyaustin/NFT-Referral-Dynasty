@@ -1,0 +1,22 @@
+{
+  "network": "somniaTestnet",
+  "timestamp": "2026-03-14T19:43:48.234Z",
+  "deployer": "0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16",
+  "contracts": {
+    "UserRegistry": "0xeEe3F77E4565C16873F8d26d199AE9deBAE7075D",
+    "ReferralBadge": "0x569F46F0Dd4b274eAC5c32e5e68C7e5748B81c51",
+    "ReferralDynasty": "0xf8Bf528252E4d53f9714E3a663c8a007043E8f5c"
+  },
+  "ownership": {
+    "badgeOwner": "0xf8Bf528252E4d53f9714E3a663c8a007043E8f5c",
+    "dynastyOwner": "0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16"
+  },
+  "trustedEmitter": "0xeEe3F77E4565C16873F8d26d199AE9deBAE7075D",
+  "subscription": {
+    "txHash": "0x2234087e0465a29d8b3fa1056df9c3812eef022978ead1876558399a25a7d747",
+    "handler": "0xf8Bf528252E4d53f9714E3a663c8a007043E8f5c",
+    "emitter": "0xeEe3F77E4565C16873F8d26d199AE9deBAE7075D",
+    "eventTopic": "0x00557365725265676973746572656428616464726573732c6164647265737329",
+    "createdAt": "2026-03-14T19:45:07.505Z"
+  }
+}

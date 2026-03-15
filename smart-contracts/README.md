@@ -7,12 +7,54 @@ To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide]
 
 # 📋 DEPLOYMENT SUMMARY
 ====================
-UserRegistry     : 0xC9b6a1530d367cf377752139D246490753633C8a
-ReferralBadge    : 0x464Ed1fd9005cb44843CE6b1cB2026FB2cc0b908
-ReferralDynasty  : 0xbd3F45B20B7CAc3237F708fD4f456A041Fc3DCdD
-Badge owner      : 0xbd3F45B20B7CAc3237F708fD4f456A041Fc3DCdD
+UserRegistry     : 0xeEe3F77E4565C16873F8d26d199AE9deBAE7075D
+ReferralBadge    : 0x569F46F0Dd4b274eAC5c32e5e68C7e5748B81c51
+ReferralDynasty  : 0xf8Bf528252E4d53f9714E3a663c8a007043E8f5c
+Badge owner      : 0xf8Bf528252E4d53f9714E3a663c8a007043E8f5c
 Dynasty owner    : 0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16
 Trusted emitter  : true
+
+# 📄 Deployment info saved to deployment-referral-system.json
+
+# 📋 NEXT STEPS
+============
+1. Create a reactivity subscription using the SDK:
+   - Handler: 0xf8Bf528252E4d53f9714E3a663c8a007043E8f5c
+   - Emitter: 0xeEe3F77E4565C16873F8d26d199AE9deBAE7075D
+   - Event: UserRegistered(address,address)
+
+2. Run the subscription script to start receiving events
+
+# 🚀 Setting up Reactivity Subscription...
+==========================================
+📋 Contract Addresses:
+   Handler (ReferralDynasty): 0xf8Bf528252E4d53f9714E3a663c8a007043E8f5c
+   Emitter (UserRegistry): 0xeEe3F77E4565C16873F8d26d199AE9deBAE7075D
+
+🔌 Initializing SDK...
+📡 Event Topic: 0x00557365725265676973746572656428616464726573732c6164647265737329
+
+📦 Creating subscription with params:
+{
+  "handlerContractAddress": "0xf8Bf528252E4d53f9714E3a663c8a007043E8f5c",
+  "priorityFeePerGas": "2000000000",
+  "maxFeePerGas": "10000000000",
+  "gasLimit": "500000",
+  "isGuaranteed": true,
+  "isCoalesced": false,
+  "emitter": "0xeEe3F77E4565C16873F8d26d199AE9deBAE7075D",
+  "eventTopics": [
+    "0x00557365725265676973746572656428616464726573732c6164647265737329"
+  ]
+}
+
+⏳ Sending transaction...
+✅ Subscription created!
+📝 Transaction Hash: 0x2234087e0465a29d8b3fa1056df9c3812eef022978ead1876558399a25a7d747
+📄 Subscription info saved to subscription-info.json
+
+💰 Account balance: 39365246372000000000 wei (39.365246372 SOM)
+✅ Account has sufficient balance for subscription.
 
 ## Project Overview
 

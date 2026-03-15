@@ -2,6 +2,12 @@
   "name": "smart-contracts",
   "version": "1.0.0",
   "type": "module",
+    "scripts": {
+    "subscription:create": "hardhat run scripts/create-subscription.ts",
+    "subscription:check": "hardhat run scripts/check-subscription.ts",
+    "subscription:test": "hardhat run scripts/test-reactivity.ts",
+    "subscription:cancel": "hardhat run scripts/cancel-subscription.ts"
+  },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.6",
     "@nomicfoundation/hardhat-ethers-chai-matchers": "^3.0.3",
@@ -23,7 +29,9 @@
     "typescript": "~5.8.0"
   },
   "dependencies": {
+    "@somnia-chain/reactivity": "^0.1.10",
     "@somnia-chain/reactivity-contracts": "^0.1.6",
-    "dotenv": "^17.3.1"
+    "dotenv": "^17.3.1",
+    "viem": "^2.37.13"
   }
 }
