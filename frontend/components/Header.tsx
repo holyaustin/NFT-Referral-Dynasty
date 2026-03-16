@@ -5,8 +5,8 @@ import { usePathname } from 'next/navigation';
 import { useWallet } from '@/hooks/useWallet';
 import { useTheme } from '@/hooks/useTheme';
 import { ConnectButton } from './Wallet/ConnectButton';
-import { Menu, Transition } from '@headlessui/react';
-import { Fragment } from 'react';
+import { Menu, Transition, Dialog } from '@headlessui/react';
+import { Fragment, useState } from 'react';  // <-- Import useState here
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 
 const navigation = [
@@ -57,6 +57,7 @@ export default function Header() {
             <button
               onClick={toggleTheme}
               className="rounded-lg p-2 hover:bg-purple-500/10 transition-colors"
+              aria-label="Toggle theme"
             >
               {theme === 'dark' ? '☀️' : '🌙'}
             </button>
@@ -66,8 +67,9 @@ export default function Header() {
 
             {/* Mobile menu button */}
             <button
-              className="md:hidden rounded-lg p-2 hover:bg-purple-500/10"
+              className="md:hidden rounded-lg p-2 hover:bg-purple-500/10 transition-colors"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle menu"
             >
               {mobileMenuOpen ? (
                 <XMarkIcon className="h-6 w-6" />
@@ -78,21 +80,51 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Mobile menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden py-4 space-y-2">
+        {/* Mobile menu with animation */}
+        <Transition
+          show={mobileMenuOpen}
+          as={Fragment}
+          enter="transition ease-out duration-200"
+          enterFrom="opacity-0 -translate-y-2"
+          enterTo="opacity-100 translate-y-0"
+          leave="transition ease-in duration-150"
+          leaveFrom="opacity-100 translate-y-0"
+          leaveTo="opacity-0 -translate-y-2"
+        >
+          <div className="md:hidden py-4 space-y-1 border-t border-purple-500/20 mt-2">
             {navigation.map((item) => (
               <Link
                 key={item.name}
                 href={item.href}
-                className="block px-3 py-2 text-base font-medium hover:bg-purple-500/10 rounded-lg"
+                className={`block px-3 py-3 text-base font-medium rounded-lg transition-all ${
+                  pathname === item.href
+                    ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-purple-500/10 hover:text-purple-600 dark:hover:text-purple-400'
+                }`}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 {item.name}
               </Link>
             ))}
+            
+            {/* Mobile wallet info (optional) */}
+            {isConnected && (
+              <div className="px-3 py-3 mt-2 text-sm text-gray-500 dark:text-gray-400 border-t border-purple-500/20">
+                <p className="font-mono">{shortAddress}</p>
+                {balance && <p className="mt-1">{balance} STT</p>}
+                <button
+                  onClick={() => {
+                    disconnect();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="mt-2 text-red-500 hover:text-red-600 text-sm"
+                >
+                  Disconnect
+                </button>
+              </div>
+            )}
           </div>
-        )}
+        </Transition>
       </nav>
     </header>
   );

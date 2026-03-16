@@ -36,7 +36,7 @@ export default function Home() {
               </Link>
             ) : (
               <button
-                onClick={() => document.querySelector('connectkit-button')?.click()}
+                  onClick={() => {(document.querySelector('connectkit-button') as HTMLButtonElement | null)?.click();  }}
                 className="rounded-xl bg-gradient-to-r from-purple-600 to-purple-800 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:from-purple-700 hover:to-purple-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-600 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/50"
               >
                 Connect Wallet to Start

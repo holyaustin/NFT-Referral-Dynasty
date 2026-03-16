@@ -8,6 +8,11 @@ import { ChevronDownIcon } from '@heroicons/react/20/solid';
 export function ConnectButton() {
   const { isConnected, shortAddress, balance, connect, disconnect } = useWallet();
 
+  // Create a handler for disconnect
+  const handleDisconnect = () => {
+    disconnect();
+  };
+
   if (!isConnected) {
     return (
       <button
@@ -45,7 +50,7 @@ export function ConnectButton() {
             <Menu.Item>
               {({ active }) => (
                 <button
-                  onClick={disconnect}
+                  onClick={handleDisconnect}  // Use the handler instead of disconnect directly
                   className={`${
                     active ? 'bg-red-500/10 text-red-600 dark:text-red-400' : ''
                   } group flex w-full items-center rounded-lg px-3 py-2 text-sm transition-colors`}
