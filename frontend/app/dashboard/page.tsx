@@ -10,7 +10,7 @@ import { ReferralTree } from '@/components/Referral/ReferralTree';
 import { StatCard } from '@/components/UI/StatCard';
 import { TabNavigation } from '@/components/UI/TabNavigation';
 import { NetworkStatus } from '@/components/UI/NetworkStatus';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowPathIcon, UserGroupIcon, TrophyIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
 
 const tabs = [
@@ -20,10 +20,17 @@ const tabs = [
 ];
 
 export default function DashboardPage() {
-  const { address, isConnected, connect } = useWallet();
-  const { badge, isLoading, refetch } = useBadgeData(address);
-  const { events, totalReferrals, totalRewards } = useReferralEvents(address);
+  const { address, isConnected, connect, chainName } = useWallet();
+  const { badge, isLoading, error: badgeError, refetch } = useBadgeData(address);
+  const { events, totalReferrals, totalRewards, error: eventsError } = useReferralEvents(address);
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Log connection info for debugging
+  useEffect(() => {
+    if (isConnected && address) {
+      console.log('Dashboard mounted with:', { address, chainName });
+    }
+  }, [isConnected, address, chainName]);
 
   if (!isConnected) {
     return (
@@ -42,12 +49,35 @@ export default function DashboardPage() {
     );
   }
 
-  // Ensure address is defined before rendering components that require it
   if (!address) {
     return (
       <div className="min-h-screen flex items-center justify-center p-8">
         <div className="text-center">
           <p className="text-gray-600 dark:text-gray-300">Loading wallet address...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if any
+  if (badgeError || eventsError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-8">
+        <div className="text-center space-y-4 max-w-md">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold gradient-text">Connection Error</h2>
+          <p className="text-gray-600 dark:text-gray-300">
+            {badgeError || eventsError || 'Failed to load dashboard data'}
+          </p>
+          <p className="text-sm text-gray-500">
+            Make sure you're connected to Somnia Testnet (Chain ID: 50312)
+          </p>
+          <button
+            onClick={refetch}
+            className="mt-4 rounded-xl bg-gradient-to-r from-purple-600 to-purple-800 px-6 py-3 text-sm font-semibold text-white hover:from-purple-700 hover:to-purple-900 transition-all duration-300"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -103,7 +133,6 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Badge */}
           <div className="lg:col-span-1">
-            {/* Now address is guaranteed to be a string */}
             <BadgeCard badge={badge} address={address} onUpdate={refetch} />
             
             {/* Quick Actions */}
@@ -130,16 +159,20 @@ export default function DashboardPage() {
               
               {activeTab === 'rewards' && (
                 <div className="space-y-4">
-                  {events.map((event, i) => (
-                    <div key={i} className="border-b border-purple-500/20 pb-4 last:border-0">
-                      <p className="text-sm text-gray-600 dark:text-gray-300">
-                        {event.type === 'referral' ? '🎉 New referral!' : '💰 Reward received'}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {new Date(event.timestamp).toLocaleString()}
-                      </p>
-                    </div>
-                  ))}
+                  {events.length > 0 ? (
+                    events.map((event, i) => (
+                      <div key={i} className="border-b border-purple-500/20 pb-4 last:border-0">
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          {event.type === 'referral' ? '🎉 New referral!' : '💰 Reward received'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(event.timestamp).toLocaleString()}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500 text-center py-4">No events yet</p>
+                  )}
                 </div>
               )}
             </div>

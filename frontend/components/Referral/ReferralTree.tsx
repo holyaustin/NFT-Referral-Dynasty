@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useWallet } from '@/hooks/useWallet';
+import { ethers } from 'ethers';
+import { CONTRACT_ADDRESSES, REFERRAL_DYNASTY_ABI, REFERRAL_BADGE_ABI } from '@/lib/contract';
 import { BadgeEvolution } from '../Badge/BadgeEvolution';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
@@ -24,39 +25,63 @@ export function ReferralTree({ address, depth = 0, maxDepth = 3 }: ReferralTreeP
   const [tree, setTree] = useState<TreeNode | null>(null);
   const [expanded, setExpanded] = useState(true);
   const [loading, setLoading] = useState(false);
-  const { isConnected } = useWallet();
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchTree = async () => {
-      if (!address) return;
+      if (!address || !window.ethereum) return;
       
       setLoading(true);
+      setError(null);
+      
       try {
-        // TODO: Fetch referral tree from contract/indexer
-        // This is mock data for demonstration
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const dynastyContract = new ethers.Contract(
+          CONTRACT_ADDRESSES.referralDynasty,
+          REFERRAL_DYNASTY_ABI,
+          provider
+        );
+        const badgeContract = new ethers.Contract(
+          CONTRACT_ADDRESSES.referralBadge,
+          REFERRAL_BADGE_ABI,
+          provider
+        );
+
+        // Get user's badge tier
+        const hasBadge = await badgeContract.hasBadge(address);
+        const tier = hasBadge ? (await badgeContract.getUserBadge(address)).tier : 0;
         
+        // Get referral count
+        const referralCount = await dynastyContract.getReferralCount(address);
+
+        // Get downline addresses if not at max depth
+        let downline: string[] = [];
+        if (depth < maxDepth) {
+          // Try to get downline (you may need to add this function to your contract)
+          // For now, we'll use a simpler approach
+          downline = []; // Placeholder
+        }
+
+        // Build tree recursively
+        const children: TreeNode[] = [];
+        for (const childAddr of downline) {
+          if (depth < maxDepth - 1) {
+            const childTree = await fetchChildTree(childAddr, depth + 1, maxDepth, provider);
+            if (childTree) {
+              children.push(childTree);
+            }
+          }
+        }
+
         setTree({
           address,
-          tier: Math.floor(Math.random() * 4),
-          referralCount: Math.floor(Math.random() * 10),
-          referrals: depth < maxDepth ? [
-            {
-              address: '0x1234...5678',
-              tier: 1,
-              referralCount: 3,
-              referrals: [],
-            },
-            {
-              address: '0x8765...4321',
-              tier: 0,
-              referralCount: 1,
-              referrals: [],
-            },
-          ] : [],
+          tier: Number(tier),
+          referralCount: Number(referralCount),
+          referrals: children,
         });
-      } catch (error) {
-        console.error('Error fetching referral tree:', error);
+      } catch (err: any) {
+        console.error('Error fetching referral tree:', err);
+        setError(err.message);
       } finally {
         setLoading(false);
       }
@@ -64,6 +89,48 @@ export function ReferralTree({ address, depth = 0, maxDepth = 3 }: ReferralTreeP
 
     fetchTree();
   }, [address, depth, maxDepth]);
+
+  const fetchChildTree = async (
+    childAddr: string,
+    currentDepth: number,
+    maxDepth: number,
+    provider: ethers.Provider
+  ): Promise<TreeNode | null> => {
+    try {
+      const dynastyContract = new ethers.Contract(
+        CONTRACT_ADDRESSES.referralDynasty,
+        REFERRAL_DYNASTY_ABI,
+        provider
+      );
+      const badgeContract = new ethers.Contract(
+        CONTRACT_ADDRESSES.referralBadge,
+        REFERRAL_BADGE_ABI,
+        provider
+      );
+
+      const hasBadge = await badgeContract.hasBadge(childAddr);
+      const tier = hasBadge ? (await badgeContract.getUserBadge(childAddr)).tier : 0;
+      const referralCount = await dynastyContract.getReferralCount(childAddr);
+
+      return {
+        address: childAddr,
+        tier: Number(tier),
+        referralCount: Number(referralCount),
+        referrals: [], // We'll stop at first level for performance
+      };
+    } catch (err) {
+      console.error('Error fetching child tree:', err);
+      return null;
+    }
+  };
+
+  if (error) {
+    return (
+      <div className="p-4 text-center">
+        <p className="text-sm text-red-500">Error loading referral tree</p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

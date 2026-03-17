@@ -41,7 +41,7 @@ async function main() {
     // Note: You may need to query the subscription status differently
     // based on the actual SDK methods available
     console.log("\n✅ Subscription appears to be active (verify on explorer)");
-    console.log(`🔗 Explorer URL: https://testnet-explorer.somnia.network/tx/${subscriptionInfo.subscription.txHash}`);
+    console.log(`🔗 Explorer URL: https://shannon-explorer.somnia.network/tx/${subscriptionInfo.subscription.txHash}`);
   } catch (error) {
     console.log("❌ Could not verify subscription status");
   }
