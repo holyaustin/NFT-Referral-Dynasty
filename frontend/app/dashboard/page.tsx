@@ -149,7 +149,8 @@ export default function DashboardPage() {
             <div className="mt-6 glass-card p-6">
               {activeTab === 'overview' && (
                 <div className="space-y-4">
-                  <ReferralStats address={address} events={events} />
+                  {/* FIX: Remove the events prop - ReferralStats fetches its own data */}
+                  <ReferralStats address={address} />
                 </div>
               )}
               

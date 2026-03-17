@@ -1,22 +1,25 @@
 {
   "network": "somniaTestnet",
-  "timestamp": "2026-03-14T19:43:48.234Z",
+  "timestamp": "2026-03-17T19:54:23.030Z",
   "deployer": "0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16",
   "contracts": {
-    "UserRegistry": "0xeEe3F77E4565C16873F8d26d199AE9deBAE7075D",
-    "ReferralBadge": "0x569F46F0Dd4b274eAC5c32e5e68C7e5748B81c51",
-    "ReferralDynasty": "0xf8Bf528252E4d53f9714E3a663c8a007043E8f5c"
+    "UserRegistry": "0xc699fbFBe7D5a05770a67Fd8267e50199Cb2C917",
+    "ReferralBadge": "0xC7F66D00701B53dC16e48BD8646822c7E7cA7426",
+    "ReferralDynasty": "0xDF807DFBCEf50658EE86C8A2b1e55991899217Ba"
   },
   "ownership": {
-    "badgeOwner": "0xf8Bf528252E4d53f9714E3a663c8a007043E8f5c",
+    "badgeOwner": "0xDF807DFBCEf50658EE86C8A2b1e55991899217Ba",
     "dynastyOwner": "0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16"
   },
-  "trustedEmitter": "0xeEe3F77E4565C16873F8d26d199AE9deBAE7075D",
+  "trustedEmitter": "0xc699fbFBe7D5a05770a67Fd8267e50199Cb2C917",
   "subscription": {
-    "txHash": "0x178ec2e74865215aa894e032a37673743311878ccf80535752fd914a130c8174",
-    "handler": "0xf8Bf528252E4d53f9714E3a663c8a007043E8f5c",
-    "emitter": "0xeEe3F77E4565C16873F8d26d199AE9deBAE7075D",
-    "eventTopic": "0x00557365725265676973746572656428616464726573732c6164647265737329",
-    "createdAt": "2026-03-16T22:53:09.035Z"
+    "txHash": "0xb34e659c59bae9998bd9fbfe5518a03b88a3cb2e56772cce7b5d0ca11fa2eef6",
+    "blockNumber": "333067405",
+    "handler": "0xDF807DFBCEf50658EE86C8A2b1e55991899217Ba",
+    "emitter": "0xc699fbFBe7D5a05770a67Fd8267e50199Cb2C917",
+    "eventTopic": "0x2138b9314634f9fdd5e49bee3eaf17ca557b6637524d0db759711c3bfcd3d850",
+    "eventSignature": "UserRegistered(address,address)",
+    "createdAt": "2026-03-17T20:55:38.260Z",
+    "status": "active"
   }
 }

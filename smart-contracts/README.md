@@ -4,8 +4,54 @@ This project showcases a Hardhat 3 Beta project using `mocha` for tests and the 
 
 To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
 
+🚀 Deploying Referral System to Somnia Testnet...
+=================================================
+📝 Deployer address: 0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16
+💰 Balance: 39.01866602 STT
 
-# 📋 DEPLOYMENT SUMMARY
+📦 Step 1: Deploying UserRegistry...
+✅ UserRegistry deployed to: 0xc699fbFBe7D5a05770a67Fd8267e50199Cb2C917
+
+📦 Step 2: Deploying ReferralBadge...
+✅ ReferralBadge deployed to: 0xC7F66D00701B53dC16e48BD8646822c7E7cA7426
+
+📦 Step 3: Deploying ReferralDynasty...
+   Using badge address: 0xC7F66D00701B53dC16e48BD8646822c7E7cA7426
+✅ ReferralDynasty deployed to: 0xDF807DFBCEf50658EE86C8A2b1e55991899217Ba
+
+📦 Step 4: Transferring badge ownership to dynasty...
+   Before - Badge owner: 0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16
+   After  - Badge owner: 0xDF807DFBCEf50658EE86C8A2b1e55991899217Ba
+✅ Ownership transferred successfully
+
+📦 Step 5: Setting UserRegistry as trusted emitter...
+✅ Registry trusted: true
+
+📦 Step 6: Funding reward pool with 0.1 ETH...
+✅ Reward pool funded. Balance: 0.1 ETH
+
+📋 DEPLOYMENT SUMMARY (NEW)
+====================
+UserRegistry     : 0xc699fbFBe7D5a05770a67Fd8267e50199Cb2C917
+ReferralBadge    : 0xC7F66D00701B53dC16e48BD8646822c7E7cA7426
+ReferralDynasty  : 0xDF807DFBCEf50658EE86C8A2b1e55991899217Ba
+Badge owner      : 0xDF807DFBCEf50658EE86C8A2b1e55991899217Ba
+Dynasty owner    : 0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16
+Trusted emitter  : true
+
+📄 Deployment info saved to deployment-referral-system.json
+
+📋 NEXT STEPS
+============
+1. Create a reactivity subscription using the SDK:
+   - Handler: 0xDF807DFBCEf50658EE86C8A2b1e55991899217Ba
+   - Emitter: 0xc699fbFBe7D5a05770a67Fd8267e50199Cb2C917
+   - Event: UserRegistered(address,address)
+
+2. Run the subscription script to start receiving events
+
+
+# 📋 DEPLOYMENT SUMMARY OLD
 ====================
 UserRegistry     : 0xeEe3F77E4565C16873F8d26d199AE9deBAE7075D
 ReferralBadge    : 0x569F46F0Dd4b274eAC5c32e5e68C7e5748B81c51

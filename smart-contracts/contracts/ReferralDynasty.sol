@@ -50,7 +50,7 @@ contract ReferralDynasty is SomniaEventHandler, Ownable, ReentrancyGuard {
     /// @dev Track which registries we trust (can be expanded)
     mapping(address => bool) public trustedRegistries;
     
-    /// @dev ADDED: Track which generic emitters we trust (for isTrustedEmitter function)
+    /// @dev Track which generic emitters we trust (for isTrustedEmitter function)
     mapping(address => bool) public trustedEmitters;
     
     /// @dev Track total referrals processed
@@ -74,7 +74,7 @@ contract ReferralDynasty is SomniaEventHandler, Ownable, ReentrancyGuard {
     
     event RegistryTrustSet(address indexed registry, bool trusted);
     
-    /// @dev ADDED: Event for trusted emitters
+    /// @dev Event for trusted emitters
     event EmitterTrustSet(address indexed emitter, bool trusted);
     
     event Paused(address indexed by);
@@ -112,8 +112,8 @@ contract ReferralDynasty is SomniaEventHandler, Ownable, ReentrancyGuard {
         bytes32[] calldata eventTopics,
         bytes calldata data
     ) internal override whenNotPaused nonReentrant {
-        // Security: Only process events from trusted registries
-        require(trustedRegistries[emitter], "Untrusted emitter");
+        // [FIXED] Check trustedEmitters instead of trustedRegistries
+        require(trustedEmitters[emitter], "Untrusted emitter");
         require(eventTopics.length > 0, "No topics");
         
         // Check if this is the event we care about
@@ -200,7 +200,7 @@ contract ReferralDynasty is SomniaEventHandler, Ownable, ReentrancyGuard {
         emit RegistryTrustSet(registry, trusted);
     }
     
-    /// @dev ADDED: Set a generic emitter as trusted
+    /// @dev Set a generic emitter as trusted
     function setTrustedEmitter(address emitter, bool trusted) external onlyOwner {
         require(emitter != address(0), "Invalid address");
         trustedEmitters[emitter] = trusted;
