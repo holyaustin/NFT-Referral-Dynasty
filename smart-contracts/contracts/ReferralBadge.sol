@@ -8,17 +8,18 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 /**
  * @title ReferralBadge
  * @dev Pure ERC721 NFT that stores badge tier and referral count.
- * ONLY callable by the owner (ReferralDynasty contract).
- * No complex inheritance, no reactivity imports.
+ * ONLY callable by the authorized dynasty contract.
+ * 
+ * FIX: Added explicit dynasty address check instead of relying on owner().
  */
 contract ReferralBadge is ERC721, Ownable {
     using Strings for uint256;
     
     // ============ Constants ============
     
-    uint256 private constant SILVER_THRESHOLD = 5;
-    uint256 private constant GOLD_THRESHOLD = 20;
-    uint256 private constant PLATINUM_THRESHOLD = 50;
+    uint256 private constant SILVER_THRESHOLD = 2;
+    uint256 private constant GOLD_THRESHOLD = 5;
+    uint256 private constant PLATINUM_THRESHOLD = 20;
     
     string private constant BASE_URI = "ipfs://QmBase/";
     
@@ -31,6 +32,9 @@ contract ReferralBadge is ERC721, Ownable {
     }
     
     // ============ State ============
+    
+    /// @dev The authorized dynasty contract that can mint and update badges
+    address public dynasty;
     
     /// @dev tokenId => BadgeData
     mapping(uint256 => BadgeData) public badges;
@@ -48,20 +52,38 @@ contract ReferralBadge is ERC721, Ownable {
     
     event BadgeMinted(address indexed user, uint256 indexed tokenId);
     event BadgeUpgraded(uint256 indexed tokenId, uint8 newTier, uint24 newCount);
+    event DynastySet(address indexed oldDynasty, address indexed newDynasty);
     
     // ============ Constructor ============
     
-    constructor() ERC721("Referral Dynasty", "RDYST") Ownable(msg.sender) {}
+    constructor() ERC721("Referral Dynasty", "RDYST") Ownable(msg.sender) {
+        dynasty = msg.sender; // Initially set to deployer (you)
+    }
     
     // ============ Modifiers ============
     
-    /// @dev Restrict functions to owner only (ReferralDynasty)
+    /**
+     * @dev FIXED: Check against specific dynasty address instead of owner()
+     * This allows calls through Somnia Reactivity where msg.sender is the validator.
+     */
     modifier onlyDynasty() {
-        require(owner() == msg.sender, "Only dynasty can call");
+        require(msg.sender == dynasty, "Only dynasty can call");
         _;
     }
     
     // ============ Core Functions ============
+    
+    /**
+     * @dev Set the authorized dynasty contract address.
+     * Only callable by the contract owner.
+     * @param _dynasty New dynasty contract address
+     */
+    function setDynasty(address _dynasty) external onlyOwner {
+        require(_dynasty != address(0), "Invalid address");
+        address oldDynasty = dynasty;
+        dynasty = _dynasty;
+        emit DynastySet(oldDynasty, _dynasty);
+    }
     
     /**
      * @dev Mint a new badge for a user
@@ -70,6 +92,7 @@ contract ReferralBadge is ERC721, Ownable {
      */
     function mint(address user) external onlyDynasty returns (uint256) {
         require(!hasBadge[user], "Already has badge");
+        require(user != address(0), "Invalid user");
         
         unchecked { totalBadges++; }
         uint256 tokenId = totalBadges;
@@ -89,7 +112,6 @@ contract ReferralBadge is ERC721, Ownable {
         });
         
         emit BadgeMinted(user, tokenId);
-        
         return tokenId;
     }
     
@@ -100,10 +122,11 @@ contract ReferralBadge is ERC721, Ownable {
     function incrementReferral(address user) external onlyDynasty {
         uint256 tokenId = userTokenId[user];
         require(tokenId != 0, "No badge exists");
+        require(user != address(0), "Invalid user");
         
         BadgeData storage badge = badges[tokenId];
         
-        // Increment count (unchecked safe as max 16M)
+        // Increment count
         unchecked { badge.referralCount++; }
         
         // Check for tier upgrade
@@ -117,54 +140,23 @@ contract ReferralBadge is ERC721, Ownable {
     
     // ============ View Functions ============
     
-    /**
-     * @dev Get badge data for a token ID
-     * @param tokenId The token ID to query
-     * @return BadgeData struct
-     */
     function getBadge(uint256 tokenId) external view returns (BadgeData memory) {
-        require(_ownerOf(tokenId) != address(0), "Badge does not exist");
+        require(_ownerOf(tokenId) != address(0), "Badge not found");
         return badges[tokenId];
     }
     
-    /**
-     * @dev Get badge data for a user address
-     * @param user The user address
-     * @return BadgeData struct
-     */
     function getUserBadge(address user) external view returns (BadgeData memory) {
         uint256 tokenId = userTokenId[user];
         require(tokenId != 0, "User has no badge");
         return badges[tokenId];
     }
     
-    /**
-     * @dev Get current tier for a user
-     * @param user The user address
-     * @return uint8 Current tier
-     */
     function getUserTier(address user) external view returns (uint8) {
         uint256 tokenId = userTokenId[user];
         if (tokenId == 0) return 0;
         return badges[tokenId].tier;
     }
     
-    /**
-     * @dev Get referral count for a user
-     * @param user The user address
-     * @return uint24 Current referral count
-     */
-    function getUserReferralCount(address user) external view returns (uint24) {
-        uint256 tokenId = userTokenId[user];
-        if (tokenId == 0) return 0;
-        return badges[tokenId].referralCount;
-    }
-    
-    /**
-     * @dev Returns the token URI for a given token ID
-     * @param tokenId The token ID
-     * @return string URI
-     */
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         require(_ownerOf(tokenId) != address(0), "Nonexistent token");
         return string(abi.encodePacked(BASE_URI, tokenId.toString(), ".json"));
@@ -172,11 +164,6 @@ contract ReferralBadge is ERC721, Ownable {
     
     // ============ Internal Helpers ============
     
-    /**
-     * @dev Calculate tier based on referral count
-     * @param count The referral count
-     * @return uint8 The tier (0-3)
-     */
     function _calculateTier(uint24 count) internal pure returns (uint8) {
         if (count >= PLATINUM_THRESHOLD) return 3;
         if (count >= GOLD_THRESHOLD) return 2;

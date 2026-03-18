@@ -7,21 +7,21 @@ To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide]
 🚀 Deploying Referral System to Somnia Testnet...
 =================================================
 📝 Deployer address: 0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16
-💰 Balance: 39.01866602 STT
+💰 Balance: 38.690063972 STT
 
 📦 Step 1: Deploying UserRegistry...
-✅ UserRegistry deployed to: 0xc699fbFBe7D5a05770a67Fd8267e50199Cb2C917
+✅ UserRegistry deployed to: 0xD4922fEe27794A09075ECA7762D5DA88629e4D40
 
 📦 Step 2: Deploying ReferralBadge...
-✅ ReferralBadge deployed to: 0xC7F66D00701B53dC16e48BD8646822c7E7cA7426
+✅ ReferralBadge deployed to: 0xdddDbbD1e990E7ea5a8716390a0Fb4e71BB210C1
 
 📦 Step 3: Deploying ReferralDynasty...
-   Using badge address: 0xC7F66D00701B53dC16e48BD8646822c7E7cA7426
-✅ ReferralDynasty deployed to: 0xDF807DFBCEf50658EE86C8A2b1e55991899217Ba
+   Using badge address: 0xdddDbbD1e990E7ea5a8716390a0Fb4e71BB210C1
+✅ ReferralDynasty deployed to: 0x014C89D40aAC6E40570e2cdEBbE99C65a204F70B
 
 📦 Step 4: Transferring badge ownership to dynasty...
    Before - Badge owner: 0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16
-   After  - Badge owner: 0xDF807DFBCEf50658EE86C8A2b1e55991899217Ba
+   After  - Badge owner: 0x014C89D40aAC6E40570e2cdEBbE99C65a204F70B
 ✅ Ownership transferred successfully
 
 📦 Step 5: Setting UserRegistry as trusted emitter...
@@ -30,12 +30,12 @@ To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide]
 📦 Step 6: Funding reward pool with 0.1 ETH...
 ✅ Reward pool funded. Balance: 0.1 ETH
 
-📋 DEPLOYMENT SUMMARY (NEW)
+📋 DEPLOYMENT SUMMARY
 ====================
-UserRegistry     : 0xc699fbFBe7D5a05770a67Fd8267e50199Cb2C917
-ReferralBadge    : 0xC7F66D00701B53dC16e48BD8646822c7E7cA7426
-ReferralDynasty  : 0xDF807DFBCEf50658EE86C8A2b1e55991899217Ba
-Badge owner      : 0xDF807DFBCEf50658EE86C8A2b1e55991899217Ba
+UserRegistry     : 0xD4922fEe27794A09075ECA7762D5DA88629e4D40
+ReferralBadge    : 0xdddDbbD1e990E7ea5a8716390a0Fb4e71BB210C1
+ReferralDynasty  : 0x014C89D40aAC6E40570e2cdEBbE99C65a204F70B
+Badge owner      : 0x014C89D40aAC6E40570e2cdEBbE99C65a204F70B
 Dynasty owner    : 0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16
 Trusted emitter  : true
 
@@ -44,63 +44,63 @@ Trusted emitter  : true
 📋 NEXT STEPS
 ============
 1. Create a reactivity subscription using the SDK:
-   - Handler: 0xDF807DFBCEf50658EE86C8A2b1e55991899217Ba
-   - Emitter: 0xc699fbFBe7D5a05770a67Fd8267e50199Cb2C917
+   - Handler: 0x014C89D40aAC6E40570e2cdEBbE99C65a204F70B
+   - Emitter: 0xD4922fEe27794A09075ECA7762D5DA88629e4D40
    - Event: UserRegistered(address,address)
 
 2. Run the subscription script to start receiving events
 
-
-# 📋 DEPLOYMENT SUMMARY OLD
-====================
-UserRegistry     : 0xeEe3F77E4565C16873F8d26d199AE9deBAE7075D
-ReferralBadge    : 0x569F46F0Dd4b274eAC5c32e5e68C7e5748B81c51
-ReferralDynasty  : 0xf8Bf528252E4d53f9714E3a663c8a007043E8f5c
-Badge owner      : 0xf8Bf528252E4d53f9714E3a663c8a007043E8f5c
-Dynasty owner    : 0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16
-Trusted emitter  : true
-
-# 📄 Deployment info saved to deployment-referral-system.json
-
-# 📋 NEXT STEPS
-============
-1. Create a reactivity subscription using the SDK:
-   - Handler: 0xf8Bf528252E4d53f9714E3a663c8a007043E8f5c
-   - Emitter: 0xeEe3F77E4565C16873F8d26d199AE9deBAE7075D
-   - Event: UserRegistered(address,address)
-
-2. Run the subscription script to start receiving events
 
 # 🚀 Setting up Reactivity Subscription...
 ==========================================
 📋 Contract Addresses:
-   Handler (ReferralDynasty): 0xf8Bf528252E4d53f9714E3a663c8a007043E8f5c
-   Emitter (UserRegistry): 0xeEe3F77E4565C16873F8d26d199AE9deBAE7075D
+   Handler (ReferralDynasty): 0x014C89D40aAC6E40570e2cdEBbE99C65a204F70B
+   Emitter (UserRegistry): 0xD4922fEe27794A09075ECA7762D5DA88629e4D40
+
+💰 Checking account balance...
+   Account: 0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16
+   Balance: 38.3672 SOM
+✅ Sufficient balance for subscription.
 
 🔌 Initializing SDK...
-📡 Event Topic: 0x00557365725265676973746572656428616464726573732c6164647265737329
+📡 Event Configuration:
+   Event Signature: UserRegistered(address,address)
+   Event Topic: 0x2138b9314634f9fdd5e49bee3eaf17ca557b6637524d0db759711c3bfcd3d850
+   Emitter: 0xD4922fEe27794A09075ECA7762D5DA88629e4D40
 
 📦 Creating subscription with params:
 {
-  "handlerContractAddress": "0xf8Bf528252E4d53f9714E3a663c8a007043E8f5c",
+  "handlerContractAddress": "0x014C89D40aAC6E40570e2cdEBbE99C65a204F70B",
   "priorityFeePerGas": "2000000000",
   "maxFeePerGas": "10000000000",
   "gasLimit": "500000",
   "isGuaranteed": true,
   "isCoalesced": false,
-  "emitter": "0xeEe3F77E4565C16873F8d26d199AE9deBAE7075D",
+  "emitter": "0xD4922fEe27794A09075ECA7762D5DA88629e4D40",
   "eventTopics": [
-    "0x00557365725265676973746572656428616464726573732c6164647265737329"
+    "0x2138b9314634f9fdd5e49bee3eaf17ca557b6637524d0db759711c3bfcd3d850"
   ]
 }
 
-⏳ Sending transaction...
-✅ Subscription created!
-📝 Transaction Hash: 0x2234087e0465a29d8b3fa1056df9c3812eef022978ead1876558399a25a7d747
+⏳ Sending transaction to create subscription...
+✅ Subscription created successfully!
+📝 Transaction Hash: 0x2bf2a66a0b11b0d80fe0307fc542e92780ceea63247f2415b2b96ef4f0399a20
+
+⏳ Waiting for transaction confirmation...
+✅ Transaction confirmed in block 333158306
+   Gas used: 303320
 📄 Subscription info saved to subscription-info.json
 
-💰 Account balance: 39365246372000000000 wei (39.365246372 SOM)
-✅ Account has sufficient balance for subscription.
+🎉 Subscription setup complete!
+
+📋 Next steps (from guide):
+   1. Test the callback by registering a new user
+   2. Check ReferralDynasty for events using an explorer
+   3. Monitor logs to see _onEvent execution
+
+💡 To test:
+   - Trigger UserRegistered event from 0xD4922fEe27794A09075ECA7762D5DA88629e4D40
+   - Check 0x014C89D40aAC6E40570e2cdEBbE99C65a204F70B for reactions
 
 ## Project Overview
 
