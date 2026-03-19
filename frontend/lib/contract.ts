@@ -4,7 +4,7 @@ import { ethers } from 'ethers';
 export const CONTRACT_ADDRESSES = {
   userRegistry: process.env.NEXT_PUBLIC_USER_REGISTRY as `0x${string}`,
   referralDynasty: process.env.NEXT_PUBLIC_REFERRAL_DYNASTY as `0x${string}`,
-  // referralBadge is removed from env - will be fetched from dynasty
+  referralBadge: process.env.NEXT_PUBLIC_REFERRAL_BADGE as `0x${string}` // This will be fetched from the dynasty contract
 };
 
 // UserRegistry ABI

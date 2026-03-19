@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { useBadgeData } from '@/hooks/useBadgeData';
 import { CONTRACT_ADDRESSES, USER_REGISTRY_ABI, REFERRAL_BADGE_ABI, REFERRAL_DYNASTY_ABI } from '@/lib/contract';
-import { ethers, BrowserProvider, Contract, JsonRpcProvider, AddressLike } from 'ethers';
+import { ethers, BrowserProvider, Contract, JsonRpcProvider } from 'ethers';
 import { CheckCircleIcon, XCircleIcon, ArrowPathIcon, UserPlusIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,14 +22,46 @@ interface ReferralFormProps {
   className?: string;
 }
 
-// Create a provider instance for read-only operations
-const getReadOnlyProvider = () => {
-  return new JsonRpcProvider(process.env.NEXT_PUBLIC_SOMNIA_RPC || 'https://dream-rpc.somnia.network');
+// ─────────────────────────────────────────────────────────────────────────────
+// FIX: ENS resolution error
+// ─────────────────────────────────────────────────────────────────────────────
+// Root cause: ethers v6 JsonRpcProvider calls `network.getEnsAddress()` when
+// resolving contract addresses if the network is not recognised (chainId 50312
+// has no entry in ethers' built-in network list, so it returns `name: "unknown"`
+// and `ensAddress: null`). The moment any Contract method is called, ethers
+// tries to resolve the contract address through ENS and throws:
+//   "network does not support ENS (operation="getEnsAddress" ...)"
+//
+// Fix A — pass an explicit Network object to JsonRpcProvider so ethers knows
+// ENS is not available on this network and skips the resolution step entirely.
+//
+// Fix B — call ethers.getAddress() to checksum every address before passing it
+// to a Contract constructor. A checksummed address is unambiguously an address,
+// not an ENS name, so ethers never attempts ENS resolution for it.
+//
+// Both fixes are applied below. Either alone would stop the error, but both
+// together make the intent explicit and guard against future address-format issues.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SOMNIA_NETWORK = {
+  chainId: 50312,
+  name: 'somniaTestnet',
 };
 
-// Helper to ensure address is properly formatted
-const toAddress = (addr: string): AddressLike => {
-  return addr as AddressLike;
+// Fix A: pass the explicit Network object so ethers never attempts ENS.
+const getReadOnlyProvider = () => {
+  return new JsonRpcProvider(
+    process.env.NEXT_PUBLIC_SOMNIA_RPC || 'https://dream-rpc.somnia.network',
+    SOMNIA_NETWORK,
+    { staticNetwork: true }   // prevents the provider re-fetching network on every call
+  );
+};
+
+// Fix B: normalise any address string to a checksum address before use.
+// ethers.getAddress() throws on invalid input, making bad addresses fail fast
+// rather than silently triggering ENS resolution.
+const toChecksumAddress = (addr: string): string => {
+  return ethers.getAddress(addr);
 };
 
 export function ReferralForm({ address, onSuccess, redirectToDashboard = true, className = '' }: ReferralFormProps) {
@@ -46,7 +78,6 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
   const { isConnected, connect } = useWallet();
   const { badge, refetch: refetchBadge } = useBadgeData(address);
 
-  // Helper function to get provider
   const getProvider = useCallback(() => {
     if (!window.ethereum) {
       throw new Error('Please install MetaMask or another Web3 wallet');
@@ -54,50 +85,51 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
     return new BrowserProvider(window.ethereum);
   }, []);
 
-  // Fetch badge address from dynasty
+  // Fetch badge address from dynasty contract
   const fetchBadgeAddress = useCallback(async () => {
     try {
       const provider = getReadOnlyProvider();
       const dynastyContract = new Contract(
-        CONTRACT_ADDRESSES.referralDynasty,
+        toChecksumAddress(CONTRACT_ADDRESSES.referralDynasty), // Fix B
         REFERRAL_DYNASTY_ABI,
         provider
       );
-      const address = await dynastyContract.badge();
-      console.log('Fetched badge address:', address);
-      setBadgeAddress(address);
-      return address;
+      const addr = await dynastyContract.badge();
+      console.log('Fetched badge address:', addr);
+      // Store as checksum address so every downstream consumer is safe
+      const checksummed = toChecksumAddress(addr);
+      setBadgeAddress(checksummed);
+      return checksummed;
     } catch (err) {
       console.error('Error fetching badge address:', err);
       return null;
     }
   }, []);
 
-  // Fetch badge address on mount
   useEffect(() => {
     fetchBadgeAddress();
   }, [fetchBadgeAddress]);
 
-  // Check if user is already registered using read-only provider
+  // Check registration and badge status
   useEffect(() => {
     const checkRegistration = async () => {
       if (!address) return;
 
       try {
         const provider = getReadOnlyProvider();
-        
+
         const registry = new Contract(
-          CONTRACT_ADDRESSES.userRegistry,
+          toChecksumAddress(CONTRACT_ADDRESSES.userRegistry), // Fix B
           USER_REGISTRY_ABI,
           provider
         );
 
-        // Pass address directly - ethers will handle it
-        const registered = await registry.registered(address);
+        // Fix B: checksum the user address so ethers treats it as an address
+        // literal and never falls through to ENS resolution.
+        const registered = await registry.registered(toChecksumAddress(address));
         console.log('Registration check for', address, ':', registered);
         setIsRegistered(registered);
 
-        // Get badge address if not already fetched
         let currentBadgeAddress = badgeAddress;
         if (!currentBadgeAddress) {
           currentBadgeAddress = await fetchBadgeAddress();
@@ -105,14 +137,13 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
 
         if (currentBadgeAddress) {
           const badgeContract = new Contract(
-            currentBadgeAddress,
+            toChecksumAddress(currentBadgeAddress), // Fix B
             REFERRAL_BADGE_ABI,
             provider
           );
-
-          const hasBadge = await badgeContract.hasBadge(address);
-          console.log('Badge check for', address, ':', hasBadge);
-          setHasBadge(hasBadge);
+          const hasBadgeResult = await badgeContract.hasBadge(toChecksumAddress(address));
+          console.log('Badge check for', address, ':', hasBadgeResult);
+          setHasBadge(hasBadgeResult);
         }
       } catch (err) {
         console.error('Error checking registration:', err);
@@ -133,29 +164,25 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
       setCheckingAddress(true);
       try {
         const provider = getReadOnlyProvider();
-        
-        // Validate address format
+
         if (!ethers.isAddress(referrer)) {
           setReferrerInfo({ hasBadge: false, isValid: false });
           return;
         }
 
-        // Get badge address if not already fetched
         let currentBadgeAddress = badgeAddress;
         if (!currentBadgeAddress) {
           currentBadgeAddress = await fetchBadgeAddress();
         }
 
         if (currentBadgeAddress) {
-          // Check if referrer has a badge
           const badgeContract = new Contract(
-            currentBadgeAddress,
+            toChecksumAddress(currentBadgeAddress), // Fix B
             REFERRAL_BADGE_ABI,
             provider
           );
-
-          const hasBadge = await badgeContract.hasBadge(referrer);
-          setReferrerInfo({ hasBadge, isValid: true });
+          const hasBadgeResult = await badgeContract.hasBadge(toChecksumAddress(referrer)); // Fix B
+          setReferrerInfo({ hasBadge: hasBadgeResult, isValid: true });
         } else {
           setReferrerInfo({ hasBadge: false, isValid: true });
         }
@@ -183,20 +210,15 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
     setError('');
     setTxHash('');
 
-    // Validate referrer address if provided
     if (referrer) {
       if (!validateAddress(referrer)) {
         setError('Invalid referrer address format');
         return;
       }
-
-      // Prevent self-referral
       if (referrer.toLowerCase() === address.toLowerCase()) {
         setError('You cannot refer yourself');
         return;
       }
-
-      // Check if referrer has a badge
       if (!referrerInfo?.hasBadge) {
         setError('Referrer does not have a badge yet');
         return;
@@ -210,34 +232,31 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
         throw new Error('Please install MetaMask or another Web3 wallet');
       }
 
-      // Request account access
       await window.ethereum.request({ method: 'eth_requestAccounts' });
 
       const provider = getProvider();
       const signer = await provider.getSigner();
-      
+
       const registry = new Contract(
-        CONTRACT_ADDRESSES.userRegistry,
+        toChecksumAddress(CONTRACT_ADDRESSES.userRegistry), // Fix B
         USER_REGISTRY_ABI,
         signer
       );
 
-      // Double-check registration status with signer
-      const isAlreadyRegistered = await registry.registered(address);
+      // Fix B: checksum address for the staticCall argument
+      const isAlreadyRegistered = await registry.registered(toChecksumAddress(address));
       console.log('Pre-registration check:', isAlreadyRegistered);
-      
+
       if (isAlreadyRegistered) {
         setIsRegistered(true);
         throw new Error('Address already registered');
       }
 
-      // Submit registration
       let tx;
       if (referrer) {
         toast.loading('Registering with referrer...', { id: 'register' });
         console.log('Registering with referrer:', referrer);
-        // Pass the address directly - don't wrap it
-        tx = await registry.register(referrer);
+        tx = await registry.register(toChecksumAddress(referrer)); // Fix B
       } else {
         toast.loading('Registering directly...', { id: 'register' });
         console.log('Registering directly');
@@ -247,29 +266,22 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
       setTxHash(tx.hash);
       console.log('Transaction hash:', tx.hash);
 
-      // Wait for transaction confirmation
       const receipt = await tx.wait();
       console.log('Transaction receipt:', receipt);
-      
+
       if (receipt.status === 1) {
         toast.success('Registration successful! Your badge is being minted...', { id: 'register' });
-        
-        // Update registration status
         setIsRegistered(true);
-        
-        // Wait for reactivity to process (badge minting)
         setCheckingStatus(true);
-        
-        // Get current badge address
+
         let currentBadgeAddress = badgeAddress;
         if (!currentBadgeAddress) {
           currentBadgeAddress = await fetchBadgeAddress();
         }
 
-        // Poll for badge minting
         let attempts = 0;
         const maxAttempts = 30;
-        
+
         const checkBadge = setInterval(async () => {
           attempts++;
           try {
@@ -278,32 +290,30 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
             }
 
             if (currentBadgeAddress) {
-              const provider = getReadOnlyProvider();
+              const readProvider = getReadOnlyProvider();
               const badgeContract = new Contract(
-                currentBadgeAddress,
+                toChecksumAddress(currentBadgeAddress), // Fix B
                 REFERRAL_BADGE_ABI,
-                provider
+                readProvider
               );
-              
-              const hasBadgeNow = await badgeContract.hasBadge(address);
+
+              const hasBadgeNow = await badgeContract.hasBadge(toChecksumAddress(address)); // Fix B
               console.log('Badge check attempt', attempts, ':', hasBadgeNow);
-              
+
               if (hasBadgeNow) {
                 clearInterval(checkBadge);
                 setHasBadge(true);
                 setCheckingStatus(false);
                 toast.success('Badge minted successfully!', { id: 'badge-check' });
-                
-                // Refetch badge data
                 await refetchBadge();
-                
-                if (onSuccess) {
-                  onSuccess();
-                }
+                if (onSuccess) onSuccess();
               } else if (attempts >= maxAttempts) {
                 clearInterval(checkBadge);
                 setCheckingStatus(false);
-                toast.success('Registration confirmed! Badge minting in progress (reactivity may take a moment)...', { id: 'badge-check' });
+                toast.success(
+                  'Registration confirmed! Badge minting in progress (reactivity may take a moment)...',
+                  { id: 'badge-check' }
+                );
               }
             }
           } catch (err) {
@@ -311,37 +321,32 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
           }
         }, 2000);
 
-        // Clear referrer input
         setReferrer('');
       } else {
         throw new Error('Transaction failed');
       }
     } catch (err: any) {
       console.error('Registration error:', err);
-      
-      // Handle specific error messages
+
       if (err.code === 4001 || err.message?.includes('user rejected')) {
         setError('Transaction rejected');
       } else if (err.message?.includes('already registered')) {
         setError('This address is already registered');
         setIsRegistered(true);
-        
-        // Check if they have a badge too
+
         try {
           let currentBadgeAddress = badgeAddress;
-          if (!currentBadgeAddress) {
-            currentBadgeAddress = await fetchBadgeAddress();
-          }
+          if (!currentBadgeAddress) currentBadgeAddress = await fetchBadgeAddress();
 
           if (currentBadgeAddress) {
-            const provider = getReadOnlyProvider();
+            const readProvider = getReadOnlyProvider();
             const badgeContract = new Contract(
-              currentBadgeAddress,
+              toChecksumAddress(currentBadgeAddress),
               REFERRAL_BADGE_ABI,
-              provider
+              readProvider
             );
-            const hasBadge = await badgeContract.hasBadge(address);
-            setHasBadge(hasBadge);
+            const hasBadgeResult = await badgeContract.hasBadge(toChecksumAddress(address));
+            setHasBadge(hasBadgeResult);
           }
         } catch (badgeErr) {
           console.error('Error checking badge after registration error:', badgeErr);
@@ -350,14 +355,10 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
         setError('Insufficient funds for transaction');
       } else if (err.message?.includes('nonce')) {
         setError('Transaction nonce error. Please try again.');
-      } else if (err.message?.includes('ENS') || err.message?.includes('getEnsAddress')) {
-        // This is the ENS error - but we've fixed the root cause
-        console.log('ENS error caught but should be fixed');
-        setError('Network connection issue. Please try again.');
       } else {
         setError(err.message || 'Registration failed');
       }
-      
+
       toast.error('Registration failed', { id: 'register' });
     } finally {
       setIsLoading(false);
@@ -366,7 +367,6 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
 
   const handleDirectRegister = async () => {
     setReferrer('');
-    // Create a synthetic event
     const syntheticEvent = {
       preventDefault: () => {},
       stopPropagation: () => {},
@@ -374,10 +374,7 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
     await handleSubmit(syntheticEvent);
   };
 
-  // ... rest of the component remains exactly the same ...
-  // (The success states and UI sections are unchanged)
-
-  // If already registered and has badge, show success state
+  // Already registered with badge
   if (isRegistered && hasBadge) {
     return (
       <motion.div
@@ -409,7 +406,7 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
     );
   }
 
-  // If registered but badge not minted yet (reactivity pending)
+  // Registered but badge not yet minted
   if (isRegistered && !hasBadge) {
     return (
       <motion.div
@@ -459,9 +456,8 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
       className={`glass-card p-6 ${className}`}
     >
       <h3 className="text-lg font-semibold gradient-text mb-4">Join Referral Dynasty</h3>
-      
+
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Referrer Input with Validation */}
         <div>
           <label htmlFor="referrer" className="block text-sm font-medium mb-2">
             Referrer Address <span className="text-gray-500">(Optional)</span>
@@ -474,7 +470,7 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
               onChange={(e) => setReferrer(e.target.value)}
               placeholder="0x..."
               className={`w-full px-4 py-3 rounded-lg bg-white/5 border ${
-                error ? 'border-red-500' : 
+                error ? 'border-red-500' :
                 referrerInfo?.hasBadge ? 'border-green-500' :
                 referrerInfo?.isValid === false ? 'border-red-500' :
                 'border-purple-500/20'
@@ -491,8 +487,7 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
               <XCircleIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
             )}
           </div>
-          
-          {/* Referrer status message */}
+
           {referrer && !checkingAddress && (
             <div className="mt-2">
               {referrerInfo?.hasBadge ? (
@@ -502,13 +497,12 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
               ) : null}
             </div>
           )}
-          
+
           <p className="mt-1 text-xs text-gray-500">
             Enter the address of your referrer (must have a badge)
           </p>
         </div>
 
-        {/* Error Display */}
         <AnimatePresence>
           {error && (
             <motion.div
@@ -523,7 +517,6 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
           )}
         </AnimatePresence>
 
-        {/* Transaction Hash */}
         <AnimatePresence>
           {txHash && (
             <motion.div
@@ -545,7 +538,6 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
           )}
         </AnimatePresence>
 
-        {/* Checking Status */}
         <AnimatePresence>
           {checkingStatus && (
             <motion.div
@@ -560,7 +552,6 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
           )}
         </AnimatePresence>
 
-        {/* Action Buttons */}
         <div className="flex gap-3 pt-2">
           <button
             type="submit"
@@ -576,7 +567,7 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
               'Register with Referrer'
             )}
           </button>
-          
+
           <button
             type="button"
             onClick={handleDirectRegister}
@@ -588,7 +579,6 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
         </div>
       </form>
 
-      {/* Info Box */}
       <div className="mt-4 p-3 bg-purple-500/5 rounded-lg border border-purple-500/10">
         <h4 className="text-xs font-semibold gradient-text mb-2">How it works:</h4>
         <ul className="text-xs text-gray-500 space-y-1">
@@ -599,7 +589,6 @@ export function ReferralForm({ address, onSuccess, redirectToDashboard = true, c
         </ul>
       </div>
 
-      {/* Contract Status */}
       <div className="mt-3 flex flex-col gap-1 text-xs text-gray-500">
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${isRegistered ? 'bg-green-500' : 'bg-gray-400'} animate-pulse`} />
