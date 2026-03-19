@@ -119,7 +119,7 @@ async function main() {
       handlerContractAddress: handlerAddress,
       priorityFeePerGas: parseGwei('2'),
       maxFeePerGas: parseGwei('10'),
-      gasLimit: 500_000n, // Adjust based on handler complexity
+      gasLimit: 6_000_000n, // Adjust based on handler complexity
       isGuaranteed: true, // Retry on failure
       isCoalesced: false, // One call per event
       // Optional filters from the guide

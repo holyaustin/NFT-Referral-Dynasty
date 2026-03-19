@@ -4,103 +4,69 @@ This project showcases a Hardhat 3 Beta project using `mocha` for tests and the 
 
 To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
 
-🚀 Deploying Referral System to Somnia Testnet...
+# 🚀 Deploying Referral System to Somnia Testnet...
 =================================================
 📝 Deployer address: 0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16
-💰 Balance: 38.690063972 STT
+💰 Balance: 34.287835862 STT
 
 📦 Step 1: Deploying UserRegistry...
-✅ UserRegistry deployed to: 0xD4922fEe27794A09075ECA7762D5DA88629e4D40
+✅ UserRegistry deployed to: 0x60f79962Ed084E6c41866f2E9C8c7482808064B3
 
 📦 Step 2: Deploying ReferralBadge...
-✅ ReferralBadge deployed to: 0xdddDbbD1e990E7ea5a8716390a0Fb4e71BB210C1
+✅ ReferralBadge deployed to: 0x5dd3fec607Ea107aC7AF726fA09f69BBE06a344a
 
 📦 Step 3: Deploying ReferralDynasty...
-   Using badge address: 0xdddDbbD1e990E7ea5a8716390a0Fb4e71BB210C1
-✅ ReferralDynasty deployed to: 0x014C89D40aAC6E40570e2cdEBbE99C65a204F70B
+   Using badge address: 0x5dd3fec607Ea107aC7AF726fA09f69BBE06a344a
+✅ ReferralDynasty deployed to: 0xb7395bC4Bc6985Bb2465fBdd8C80A0888d143511
 
 📦 Step 4: Transferring badge ownership to dynasty...
    Before - Badge owner: 0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16
-   After  - Badge owner: 0x014C89D40aAC6E40570e2cdEBbE99C65a204F70B
+   After  - Badge owner: 0xb7395bC4Bc6985Bb2465fBdd8C80A0888d143511
 ✅ Ownership transferred successfully
 
 📦 Step 5: Setting UserRegistry as trusted emitter...
 ✅ Registry trusted: true
 
-📦 Step 6: Funding reward pool with 0.1 ETH...
-✅ Reward pool funded. Balance: 0.1 ETH
+📦 Step 6: Verifying event topic alignment...
+   Expected topic  : 0x2138b9314634f9fdd5e49bee3eaf17ca557b6637524d0db759711c3bfcd3d850
+   Computed topic  : 0x2138b9314634f9fdd5e49bee3eaf17ca557b6637524d0db759711c3bfcd3d850
+✅ Event topic verified
 
 📋 DEPLOYMENT SUMMARY
 ====================
-UserRegistry     : 0xD4922fEe27794A09075ECA7762D5DA88629e4D40
-ReferralBadge    : 0xdddDbbD1e990E7ea5a8716390a0Fb4e71BB210C1
-ReferralDynasty  : 0x014C89D40aAC6E40570e2cdEBbE99C65a204F70B
-Badge owner      : 0x014C89D40aAC6E40570e2cdEBbE99C65a204F70B
+UserRegistry     : 0x60f79962Ed084E6c41866f2E9C8c7482808064B3
+ReferralBadge    : 0x5dd3fec607Ea107aC7AF726fA09f69BBE06a344a
+ReferralDynasty  : 0xb7395bC4Bc6985Bb2465fBdd8C80A0888d143511
+Badge owner      : 0xb7395bC4Bc6985Bb2465fBdd8C80A0888d143511
 Dynasty owner    : 0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16
 Trusted emitter  : true
+Event topic      : 0x2138b9314634f9fdd5e49bee3eaf17ca557b6637524d0db759711c3bfcd3d850
 
 📄 Deployment info saved to deployment-referral-system.json
 
 📋 NEXT STEPS
 ============
-1. Create a reactivity subscription using the SDK:
-   - Handler: 0x014C89D40aAC6E40570e2cdEBbE99C65a204F70B
-   - Emitter: 0xD4922fEe27794A09075ECA7762D5DA88629e4D40
-   - Event: UserRegistered(address,address)
+1. Create a reactivity subscription:
+   npx hardhat run scripts/create-subscription-500k.ts --network somniaTestnet
 
-2. Run the subscription script to start receiving events
+2. Test the flow:
+   npx hardhat run scripts/test-referral-flow.ts --network somniaTestnet
 
 
-# 🚀 Setting up Reactivity Subscription...
-==========================================
-📋 Contract Addresses:
-   Handler (ReferralDynasty): 0x014C89D40aAC6E40570e2cdEBbE99C65a204F70B
-   Emitter (UserRegistry): 0xD4922fEe27794A09075ECA7762D5DA88629e4D40
+# 🚀 Creating Subscription with 2M GAS...
+=========================================
 
-💰 Checking account balance...
-   Account: 0x2c3b2B2325610a6814f2f822D0bF4DAB8CF16e16
-   Balance: 38.3672 SOM
-✅ Sufficient balance for subscription.
+📋 Handler  (Dynasty) : 0xb7395bC4Bc6985Bb2465fBdd8C80A0888d143511
+📋 Emitter  (Registry): 0x60f79962Ed084E6c41866f2E9C8c7482808064B3
+📋 Event topic        : 0x2138b9314634f9fdd5e49bee3eaf17ca557b6637524d0db759711c3bfcd3d850
+💰 Balance: 33.97533095 SOM
 
-🔌 Initializing SDK...
-📡 Event Configuration:
-   Event Signature: UserRegistered(address,address)
-   Event Topic: 0x2138b9314634f9fdd5e49bee3eaf17ca557b6637524d0db759711c3bfcd3d850
-   Emitter: 0xD4922fEe27794A09075ECA7762D5DA88629e4D40
-
-📦 Creating subscription with params:
-{
-  "handlerContractAddress": "0x014C89D40aAC6E40570e2cdEBbE99C65a204F70B",
-  "priorityFeePerGas": "2000000000",
-  "maxFeePerGas": "10000000000",
-  "gasLimit": "500000",
-  "isGuaranteed": true,
-  "isCoalesced": false,
-  "emitter": "0xD4922fEe27794A09075ECA7762D5DA88629e4D40",
-  "eventTopics": [
-    "0x2138b9314634f9fdd5e49bee3eaf17ca557b6637524d0db759711c3bfcd3d850"
-  ]
-}
-
-⏳ Sending transaction to create subscription...
-✅ Subscription created successfully!
-📝 Transaction Hash: 0x2bf2a66a0b11b0d80fe0307fc542e92780ceea63247f2415b2b96ef4f0399a20
-
-⏳ Waiting for transaction confirmation...
-✅ Transaction confirmed in block 333158306
-   Gas used: 303320
-📄 Subscription info saved to subscription-info.json
-
-🎉 Subscription setup complete!
-
-📋 Next steps (from guide):
-   1. Test the callback by registering a new user
-   2. Check ReferralDynasty for events using an explorer
-   3. Monitor logs to see _onEvent execution
-
-💡 To test:
-   - Trigger UserRegistered event from 0xD4922fEe27794A09075ECA7762D5DA88629e4D40
-   - Check 0x014C89D40aAC6E40570e2cdEBbE99C65a204F70B for reactions
+📦 Creating subscription...
+✅ SUBSCRIPTION CREATED!
+📝 Transaction Hash: 0x234fe26b22fca78a579f1249dd1614dac02d3f1d1720795e7f8f32ac5b4a31a2
+🔗 Explorer: https://shannon-explorer.somnia.network/tx/0x234fe26b22fca78a579f1249dd1614dac02d3f1d1720795e7f8f32ac5b4a31a2
+✅ Confirmed in block 334493415
+📄 deployment-referral-system.json updated with subscriptionTx
 
 ## Project Overview
 
@@ -153,3 +119,6 @@ After setting the variable, you can run the deployment with the Sepolia network:
 ```shell
 npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
 ```
+
+
+

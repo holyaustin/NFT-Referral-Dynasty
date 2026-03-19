@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
-import { CONTRACT_ADDRESSES, REFERRAL_BADGE_ABI } from '@/lib/contract';
+import { CONTRACT_ADDRESSES, REFERRAL_BADGE_ABI, REFERRAL_DYNASTY_ABI } from '@/lib/contract';
 
 interface BadgeData {
   tier: number;
@@ -14,6 +14,22 @@ export function useBadgeData(address: string | undefined) {
   const [badge, setBadge] = useState<BadgeData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const getBadgeAddress = useCallback(async (provider: ethers.Provider) => {
+    try {
+      const dynastyContract = new ethers.Contract(
+        CONTRACT_ADDRESSES.referralDynasty,
+        REFERRAL_DYNASTY_ABI,
+        provider
+      );
+      const badgeAddress = await dynastyContract.badge();
+      console.log('Badge address from dynasty:', badgeAddress);
+      return badgeAddress;
+    } catch (err) {
+      console.error('Error getting badge address from dynasty:', err);
+      throw new Error('Failed to get badge contract address');
+    }
+  }, []);
 
   const fetchBadge = useCallback(async () => {
     // Clear state if no address
@@ -47,19 +63,20 @@ export function useBadgeData(address: string | undefined) {
         name: network.name
       });
 
-      // Log contract address for debugging
-      console.log('Contract address:', CONTRACT_ADDRESSES.referralBadge);
+      // Get the actual badge address from dynasty contract
+      const badgeAddress = await getBadgeAddress(provider);
+      console.log('Using badge address:', badgeAddress);
       
       const badgeContract = new ethers.Contract(
-        CONTRACT_ADDRESSES.referralBadge,
+        badgeAddress,
         REFERRAL_BADGE_ABI,
         provider
       );
 
       // First check if the contract exists at the address
-      const code = await provider.getCode(CONTRACT_ADDRESSES.referralBadge);
+      const code = await provider.getCode(badgeAddress);
       if (code === '0x') {
-        throw new Error('No contract found at the specified address');
+        throw new Error('No contract found at the badge address');
       }
 
       // Check if user has a badge
@@ -77,10 +94,15 @@ export function useBadgeData(address: string | undefined) {
           const badgeData = await badgeContract.getUserBadge(address);
           console.log('badgeData:', badgeData);
           
+          // Handle ethers v6 tuple/struct response
+          const tier = Number(badgeData.tier ?? badgeData[0]);
+          const referralCount = Number(badgeData.referralCount ?? badgeData[1]);
+          const lastUpdate = Number(badgeData.lastUpdate ?? badgeData[2]);
+          
           setBadge({
-            tier: Number(badgeData.tier),
-            referralCount: Number(badgeData.referralCount),
-            lastUpdate: Number(badgeData.lastUpdate),
+            tier,
+            referralCount,
+            lastUpdate,
           });
         } catch (err) {
           console.error('Error fetching badge data:', err);
@@ -95,7 +117,7 @@ export function useBadgeData(address: string | undefined) {
     } finally {
       setIsLoading(false);
     }
-  }, [address]);
+  }, [address, getBadgeAddress]);
 
   useEffect(() => {
     fetchBadge();

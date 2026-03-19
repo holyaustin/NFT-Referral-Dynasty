@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "type": "module",
     "scripts": {
+    "deploy": "hardhat run scripts/deploy-fresh-system.ts --network somniaTestnet",
+    "subscribe": "hardhat run scripts/create-subscription-500k.ts --network somniaTestnet",
+    "test": "hardhat run scripts/test-referral-flow-complete.ts --network somniaTestnet",
     "subscription:create": "hardhat run scripts/create-subscription.ts",
     "subscription:check": "hardhat run scripts/check-subscription.ts",
     "subscription:test": "hardhat run scripts/test-reactivity.ts",

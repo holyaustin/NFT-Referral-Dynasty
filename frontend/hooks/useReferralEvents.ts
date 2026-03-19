@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES, REFERRAL_BADGE_ABI, REFERRAL_DYNASTY_ABI } from '@/lib/contract';
 
@@ -19,6 +19,22 @@ export function useReferralEvents(address: string | undefined) {
   const [totalReferrals, setTotalReferrals] = useState(0);
   const [totalRewards, setTotalRewards] = useState(0);
 
+  const getBadgeAddress = useCallback(async (provider: ethers.Provider) => {
+    try {
+      const dynastyContract = new ethers.Contract(
+        CONTRACT_ADDRESSES.referralDynasty,
+        REFERRAL_DYNASTY_ABI,
+        provider
+      );
+      const badgeAddress = await dynastyContract.badge();
+      console.log('Badge address from dynasty:', badgeAddress);
+      return badgeAddress;
+    } catch (err) {
+      console.error('Error getting badge address:', err);
+      throw new Error('Failed to get badge contract address');
+    }
+  }, []);
+
   useEffect(() => {
     const fetchEvents = async () => {
       if (!address || !window.ethereum) {
@@ -32,9 +48,12 @@ export function useReferralEvents(address: string | undefined) {
       try {
         const provider = new ethers.BrowserProvider(window.ethereum);
         
-        // Get badge contract
+        // Get the actual badge address from dynasty contract
+        const badgeAddress = await getBadgeAddress(provider);
+        
+        // Get badge contract with dynamic address
         const badgeContract = new ethers.Contract(
-          CONTRACT_ADDRESSES.referralBadge,
+          badgeAddress,
           REFERRAL_BADGE_ABI,
           provider
         );
@@ -47,7 +66,7 @@ export function useReferralEvents(address: string | undefined) {
         );
 
         console.log('Connected to network:', await provider.getNetwork());
-        console.log('Badge contract address:', CONTRACT_ADDRESSES.referralBadge);
+        console.log('Badge contract address:', badgeAddress);
         console.log('Dynasty contract address:', CONTRACT_ADDRESSES.referralDynasty);
 
         // Check if user has a badge
@@ -55,22 +74,22 @@ export function useReferralEvents(address: string | undefined) {
         console.log('hasBadge result:', hasBadge);
 
         if (hasBadge) {
-          // Get referral count from badge contract (not from dynasty)
+          // Get referral count from badge contract
           const badgeData = await badgeContract.getUserBadge(address);
           console.log('Badge data:', badgeData);
           
-          // badgeData is a tuple: [tier, referralCount, lastUpdate]
-          // In ethers v6, it's an array-like object
-          const referralCount = Number(badgeData[1] || badgeData.referralCount);
+          // Handle ethers v6 tuple/struct response
+          const referralCount = Number(badgeData.referralCount ?? badgeData[1]);
           setTotalReferrals(referralCount);
 
-          // For rewards total, we need to query events
-          // This is a simplified version - in production you'd want to use an indexer
+          // For rewards total, query events from dynasty
+          // Note: This might need an indexer for production
           const filter = dynastyContract.filters.RewardDistributed?.(address);
           if (filter) {
-            const rewardEvents = await dynastyContract.queryFilter(filter, -10000); // Last 10000 blocks
+            const rewardEvents = await dynastyContract.queryFilter(filter, -10000);
             const total = rewardEvents.reduce((sum, event: any) => {
-              return sum + Number(ethers.formatEther(event.args?.[1] || 0));
+              const amount = event.args?.[1] ? Number(ethers.formatEther(event.args[1])) : 0;
+              return sum + amount;
             }, 0);
             setTotalRewards(total);
 
@@ -78,7 +97,7 @@ export function useReferralEvents(address: string | undefined) {
             const formattedEvents: ReferralEvent[] = rewardEvents.map((event: any) => ({
               type: 'reward',
               message: `Received ${ethers.formatEther(event.args?.[1] || 0)} STT reward`,
-              timestamp: (event as any).timestamp || Date.now(),
+              timestamp: event.args?.[2] ? Number(event.args[2]) * 1000 : Date.now(),
               amount: Number(ethers.formatEther(event.args?.[1] || 0)),
               txHash: event.transactionHash,
             }));
@@ -98,7 +117,7 @@ export function useReferralEvents(address: string | undefined) {
     };
 
     fetchEvents();
-  }, [address]);
+  }, [address, getBadgeAddress]);
 
   return { events, isLoading, error, totalReferrals, totalRewards };
 }
