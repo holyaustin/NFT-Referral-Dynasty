@@ -5,30 +5,19 @@ import { ethers, JsonRpcProvider } from 'ethers';
 import { CONTRACT_ADDRESSES, REFERRAL_BADGE_ABI } from '@/lib/contract';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FIXES APPLIED
-// ─────────────────────────────────────────────────────────────────────────────
+// Fix 5 — Somnia RPC rejects eth_getLogs with block range > 1000
 //
-// Fix 1 — dynastyContract.getReferralCount does not exist
-//   The function is not on ReferralDynasty. The referral count lives inside
-//   the BadgeData struct returned by badgeContract.getUserBadge(owner):
-//     struct BadgeData { uint8 tier; uint24 referralCount; uint256 lastUpdate; }
-//   Fix: read badgeData.referralCount directly; remove dynastyContract entirely.
+// The node returns: { code: -1, message: "block range exceeds 1000" }
+// for any eth_getLogs call whose (toBlock - fromBlock) exceeds 1000.
 //
-// Fix 2 — BrowserProvider requires a connected (unlocked) wallet
-//   The leaderboard is a public read-only view. Using BrowserProvider meant the
-//   hook would error for any visitor who had not approved the site in MetaMask.
-//   Fix: use JsonRpcProvider with the public RPC, same pattern as ReferralForm.
+// Solution: paginate. Fetch logs in CHUNK_SIZE-block windows from the
+// contract's deploy block to the current head, accumulating results.
 //
-// Fix 3 — Sequential ownerOf + getUserBadge = 2N serial RPC calls (very slow)
-//   ownerOf(tokenId) is only needed to get the owner address, but BadgeMinted
-//   events already carry both the owner address and the tokenId. Reading the
-//   event log once replaces all N ownerOf calls with a single eth_getLogs call,
-//   reducing RPC traffic from 2N → N+1 and making the fetch ~7× faster for
-//   100 badges.
-//
-// Fix 4 — timeframe filter was defined but never applied
-//   Event logs carry block timestamps. We now filter BadgeMinted events to only
-//   those inside the selected timeframe window before fetching badge data.
+// BADGE_DEPLOY_BLOCK should be set in .env.local as
+//   NEXT_PUBLIC_BADGE_DEPLOY_BLOCK=<block number when ReferralBadge deployed>
+// If not set, falls back to current block - 200,000 as a conservative default.
+// The smaller this number is (i.e. the closer to the real deploy block), the
+// fewer chunks are needed and the faster the leaderboard loads.
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface LeaderboardEntry {
@@ -38,8 +27,8 @@ interface LeaderboardEntry {
   tier: number;
 }
 
-// Match the network object used throughout the app (same as ReferralForm)
 const SOMNIA_NETWORK = { chainId: 50312, name: 'somniaTestnet' };
+const CHUNK_SIZE = 900; // safely under the 1000-block RPC limit
 
 const getReadOnlyProvider = () =>
   new JsonRpcProvider(
@@ -48,17 +37,36 @@ const getReadOnlyProvider = () =>
     { staticNetwork: true }
   );
 
-// Returns the earliest timestamp (seconds) for the given timeframe.
-// Events with block.timestamp < this value are excluded.
 const timeframeCutoff = (timeframe: string): number => {
   const now = Math.floor(Date.now() / 1000);
   switch (timeframe) {
     case 'day':   return now - 86_400;
     case 'week':  return now - 7 * 86_400;
     case 'month': return now - 30 * 86_400;
-    default:      return 0; // 'all' — no cutoff
+    default:      return 0;
   }
 };
+
+/**
+ * Fetch all logs for a given filter by paginating in CHUNK_SIZE-block windows.
+ * Somnia testnet rejects any eth_getLogs request spanning more than 1000 blocks.
+ */
+async function getPaginatedLogs(
+  contract: ethers.Contract,
+  filter: ethers.ContractEventName,
+  fromBlock: number,
+  toBlock: number
+): Promise<ethers.EventLog[]> {
+  const allLogs: ethers.EventLog[] = [];
+
+  for (let start = fromBlock; start <= toBlock; start += CHUNK_SIZE) {
+    const end = Math.min(start + CHUNK_SIZE - 1, toBlock);
+    const chunk = await contract.queryFilter(filter, start, end);
+    allLogs.push(...(chunk as ethers.EventLog[]));
+  }
+
+  return allLogs;
+}
 
 export function useLeaderboard(timeframe: string = 'all') {
   const [leaders, setLeaders] = useState<LeaderboardEntry[]>([]);
@@ -74,7 +82,6 @@ export function useLeaderboard(timeframe: string = 'all') {
       setError(null);
 
       try {
-        // Fix 2: public read-only provider — no wallet connection required
         const provider = getReadOnlyProvider();
 
         const badgeContract = new ethers.Contract(
@@ -83,48 +90,75 @@ export function useLeaderboard(timeframe: string = 'all') {
           provider
         );
 
-        // Fix 3: one eth_getLogs call instead of N ownerOf calls.
-        // BadgeMinted(address indexed user, uint256 indexed tokenId)
-        // gives us every badge holder's address directly from the event log.
+        // Determine the block window to scan.
+        // For timeframes shorter than 'all', compute the approximate start block
+        // using Somnia's ~1 block/second rate to minimise the number of chunks.
+        const currentBlock = await provider.getBlockNumber();
+
+        let fromBlock: number;
+        if (timeframe === 'all') {
+          // Use the env-configured deploy block, or fall back to 200k blocks ago.
+          fromBlock = process.env.NEXT_PUBLIC_BADGE_DEPLOY_BLOCK
+            ? Number(process.env.NEXT_PUBLIC_BADGE_DEPLOY_BLOCK)
+            : Math.max(0, currentBlock - 200_000);
+        } else {
+          // Estimate blocks back based on seconds (Somnia ≈ 1 block/sec).
+          const secondsBack = {
+            day:   86_400,
+            week:  7 * 86_400,
+            month: 30 * 86_400,
+          }[timeframe] ?? 0;
+          fromBlock = Math.max(0, currentBlock - secondsBack);
+        }
+
+        // Paginate BadgeMinted logs across the full block range.
         const mintedFilter = badgeContract.filters.BadgeMinted();
-        const mintedLogs = await badgeContract.queryFilter(mintedFilter, 0, 'latest');
+        const mintedLogs = await getPaginatedLogs(
+          badgeContract,
+          mintedFilter,
+          fromBlock,
+          currentBlock
+        );
 
-        // Fix 4: apply timeframe cutoff using block timestamps
+        if (cancelled) return;
+
+        // Apply timestamp-based timeframe filter.
+        // For 'all' we skip this (cutoff = 0) to avoid N extra getBlock calls.
         const cutoff = timeframeCutoff(timeframe);
-        const filteredLogs = cutoff === 0
-          ? mintedLogs
-          : await Promise.all(
-              mintedLogs.map(async (log) => {
-                const block = await provider.getBlock(log.blockNumber);
-                return block && block.timestamp >= cutoff ? log : null;
-              })
-            ).then(results => results.filter(Boolean) as typeof mintedLogs);
+        let filteredLogs = mintedLogs;
 
-        // Deduplicate by owner address (in case of edge-case double events)
-        const seenAddresses = new Set<string>();
-        const uniqueLogs = filteredLogs.filter(log => {
-          // BadgeMinted has `user` as topic[1] (indexed)
+        if (cutoff > 0) {
+          const withTimestamps = await Promise.all(
+            mintedLogs.map(async (log) => {
+              const block = await provider.getBlock(log.blockNumber);
+              return block && block.timestamp >= cutoff ? log : null;
+            })
+          );
+          filteredLogs = withTimestamps.filter(Boolean) as ethers.EventLog[];
+        }
+
+        if (cancelled) return;
+
+        // Deduplicate by owner — keep the latest event per address.
+        const latestByOwner = new Map<string, ethers.EventLog>();
+        for (const log of filteredLogs) {
           const owner = ethers.getAddress('0x' + log.topics[1].slice(26));
-          if (seenAddresses.has(owner)) return false;
-          seenAddresses.add(owner);
-          return true;
-        });
+          latestByOwner.set(owner, log);
+        }
 
-        // Fetch badge data for each unique owner in parallel
-        // Fix 1: use badgeData.referralCount — no dynastyContract needed
+        // Fetch badge data for every unique owner in parallel.
+        // badgeData.referralCount is the correct source (Fix 1 from previous session).
         const entries = await Promise.all(
-          uniqueLogs.map(async (log) => {
-            const owner = ethers.getAddress('0x' + log.topics[1].slice(26));
+          [...latestByOwner.keys()].map(async (owner) => {
             try {
               const badgeData = await badgeContract.getUserBadge(owner);
               return {
                 rank: 0,
                 address: owner,
-                referrals: Number(badgeData.referralCount), // Fix 1
+                referrals: Number(badgeData.referralCount),
                 tier: Number(badgeData.tier),
               } satisfies LeaderboardEntry;
             } catch {
-              // Badge may have been burned or getUserBadge reverted — skip
               return null;
             }
           })
@@ -152,8 +186,6 @@ export function useLeaderboard(timeframe: string = 'all') {
     };
 
     fetchLeaderboard();
-
-    // Cleanup: if timeframe changes before the fetch completes, discard stale results
     return () => { cancelled = true; };
   }, [timeframe]);
 

@@ -2,20 +2,60 @@
 
 import { BadgeCard } from './BadgeCard';
 import { motion } from 'framer-motion';
+import { useMemo } from 'react';
+
+interface Badge {
+  tokenId: number;
+  owner: string;
+  badgeData: {
+    tier: number;
+    referralCount: number;
+    lastUpdate: number;
+  };
+}
 
 interface BadgeGalleryProps {
-  badges: any[];
+  badges: Badge[];
   filter: string;
   search: string;
 }
 
 export function BadgeGallery({ badges, filter, search }: BadgeGalleryProps) {
-  const filteredBadges = badges.filter((badge) => {
-    const matchesFilter = filter === 'all' || badge.tier === parseInt(filter);
-    const matchesSearch = badge.owner?.toLowerCase().includes(search.toLowerCase()) ||
-                         badge.tokenId?.toString().includes(search);
-    return matchesFilter && matchesSearch;
-  });
+  const filteredBadges = useMemo(() => {
+    console.log('Filtering badges:', { total: badges.length, filter, search });
+    
+    const result = badges.filter((badge) => {
+      // Filter by tier - convert filter string to number for comparison
+      let matchesFilter = filter === 'all';
+      if (!matchesFilter) {
+        const filterTier = parseInt(filter);
+        // Handle potential NaN
+        if (!isNaN(filterTier)) {
+          matchesFilter = badge.badgeData.tier === filterTier;
+        }
+      }
+      
+      // Filter by search (owner address or token ID)
+      const matchesSearch = search === '' || 
+        badge.owner?.toLowerCase().includes(search.toLowerCase()) ||
+        badge.tokenId?.toString().includes(search);
+      
+      return matchesFilter && matchesSearch;
+    });
+    
+    console.log('Filtered results:', result.length);
+    return result;
+  }, [badges, filter, search]);
+
+  if (filteredBadges.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-500 dark:text-gray-400">
+          No badges match your filters. Try adjusting your search criteria.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -34,6 +74,7 @@ export function BadgeGallery({ badges, filter, search }: BadgeGalleryProps) {
           <BadgeCard
             badge={badge.badgeData}
             address={badge.owner}
+            tokenId={badge.tokenId}
             isPublic
           />
         </motion.div>

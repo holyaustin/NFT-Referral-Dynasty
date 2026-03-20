@@ -1,23 +1,36 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { BadgeGallery } from '@/components/Badge/BadgeGallery';
 import { BadgeSkeleton } from '@/components/Badge/BadgeSkeleton';
-import { useWallet } from '@/hooks/useWallet';
 import { MagnifyingGlassIcon, FunnelIcon } from '@heroicons/react/24/outline';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES, REFERRAL_BADGE_ABI } from '@/lib/contract';
+import debounce from 'lodash/debounce';
 
-const BATCH_SIZE = 100; // Number of token IDs to check per request
+// Define the badge type
+interface Badge {
+  tokenId: number;
+  owner: string;
+  badgeData: {
+    tier: number;
+    referralCount: number;
+    lastUpdate: number;
+  };
+}
+
+const BADGES_PER_PAGE = 12;
 
 export default function BadgesPage() {
-  const { isConnected } = useWallet();
-  const [badges, setBadges] = useState([]);
+  const [badges, setBadges] = useState<Badge[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [totalSupply, setTotalSupply] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
 
+  // Fetch all badges
   useEffect(() => {
     const fetchAllBadges = async () => {
       setIsLoading(true);
@@ -32,43 +45,40 @@ export default function BadgesPage() {
           provider
         );
 
-        // Get total number of badges minted
         const total = await badgeContract.totalBadges();
         setTotalSupply(Number(total));
-        console.log(`Total badges: ${total}`);
 
-        const fetchedBadges = [];
+        const startId = (currentPage - 1) * BADGES_PER_PAGE + 1;
+        const endId = Math.min(startId + BADGES_PER_PAGE - 1, Number(total));
+        
+        setHasMore(endId < Number(total));
 
-        // Fetch badges in batches to avoid RPC overload
-        for (let tokenId = 1; tokenId <= Number(total); tokenId++) {
+        const fetchedBadges: Badge[] = [];
+
+        for (let tokenId = startId; tokenId <= endId; tokenId++) {
           try {
-            // Check if token exists (optional, but good for safety)
-            const owner = await badgeContract.ownerOf(tokenId).catch(() => null);
+            const owner = await badgeContract.ownerOf(tokenId);
+            const badgeData = await badgeContract.getBadge(tokenId);
             
-            if (owner) {
-              const badgeData = await badgeContract.getBadge(tokenId);
-              fetchedBadges.push({
-                tokenId,
-                owner,
-                badgeData: {
-                  tier: Number(badgeData.tier),
-                  referralCount: Number(badgeData.referralCount),
-                  lastUpdate: Number(badgeData.lastUpdate),
-                },
-              });
-            }
+            fetchedBadges.push({
+              tokenId,
+              owner,
+              badgeData: {
+                tier: Number(badgeData.tier),
+                referralCount: Number(badgeData.referralCount),
+                lastUpdate: Number(badgeData.lastUpdate),
+              },
+            });
           } catch (err) {
-            console.log(`Token ${tokenId} may not exist:`, err);
-          }
-
-          // Small delay to avoid rate limiting
-          if (tokenId % 10 === 0) {
-            await new Promise(resolve => setTimeout(resolve, 100));
+            console.log(`Token ${tokenId} error:`, err);
           }
         }
 
-        console.log(`Fetched ${fetchedBadges.length} badges`);
-        setBadges(fetchedBadges as any);
+        if (currentPage === 1) {
+          setBadges(fetchedBadges);
+        } else {
+          setBadges(prev => [...prev, ...fetchedBadges]);
+        }
       } catch (error) {
         console.error('Error fetching badges:', error);
       } finally {
@@ -77,15 +87,34 @@ export default function BadgesPage() {
     };
 
     fetchAllBadges();
-  }, []);
+  }, [currentPage]);
 
-  // ... rest of the component (filters, UI) remains the same
+  const loadMore = () => {
+    setCurrentPage(prev => prev + 1);
+  };
+
+  // Debounced search handler
+  const debouncedSetSearch = useCallback(
+    debounce((value: string) => {
+      setSearch(value);
+    }, 300),
+    []
+  );
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    debouncedSetSearch(e.target.value);
+  };
+
+  const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setFilter(e.target.value);
+  };
+
+  // 3 tiers only (Bronze: 0, Silver: 1, Gold: 2)
   const filters = [
     { value: 'all', label: 'All Badges' },
-    { value: 'bronze', label: 'Bronze' },
-    { value: 'silver', label: 'Silver' },
-    { value: 'gold', label: 'Gold' },
-    { value: 'platinum', label: 'Platinum' },
+    { value: '0', label: 'Bronze' },
+    { value: '1', label: 'Silver' },
+    { value: '2', label: 'Gold' },
   ];
 
   return (
@@ -95,7 +124,7 @@ export default function BadgesPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold gradient-text">Badge Gallery</h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-            Explore all {totalSupply} Referral Dynasty badges and their evolution
+            Explore all {totalSupply} Referral Dynasty badges minted so far
           </p>
         </div>
 
@@ -105,9 +134,8 @@ export default function BadgesPage() {
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by address or token ID..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by owner address or token ID..."
+              onChange={handleSearchChange}
               className="w-full pl-10 pr-4 py-2 rounded-xl glass-card border border-purple-500/20 focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
           </div>
@@ -115,7 +143,7 @@ export default function BadgesPage() {
             <FunnelIcon className="h-5 w-5 text-gray-400" />
             <select
               value={filter}
-              onChange={(e) => setFilter(e.target.value)}
+              onChange={handleFilterChange}
               className="px-4 py-2 rounded-xl glass-card border border-purple-500/20 focus:outline-none focus:ring-2 focus:ring-purple-500"
             >
               {filters.map((f) => (
@@ -126,24 +154,36 @@ export default function BadgesPage() {
         </div>
 
         {/* Gallery */}
-        {isLoading ? (
+        {isLoading && currentPage === 1 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {[...Array(8)].map((_, i) => (
               <BadgeSkeleton key={i} />
             ))}
           </div>
         ) : (
-          <BadgeGallery badges={badges} filter={filter} search={search} />
+          <>
+            <BadgeGallery badges={badges} filter={filter} search={search} />
+            
+            {/* Load More Button */}
+            {hasMore && !isLoading && (
+              <div className="mt-8 text-center">
+                <button
+                  onClick={loadMore}
+                  disabled={isLoading}
+                  className="px-6 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-purple-800 text-white font-medium hover:from-purple-700 hover:to-purple-900 transition-all duration-300 disabled:opacity-50"
+                >
+                  Load More Badges
+                </button>
+              </div>
+            )}
+          </>
         )}
 
-        {/* Empty State */}
-        {!isLoading && badges.length === 0 && (
-          <div className="text-center py-20">
-            <div className="text-6xl mb-4">🎨</div>
-            <h3 className="text-xl font-semibold gradient-text mb-2">No Badges Found</h3>
-            <p className="text-gray-600 dark:text-gray-300">
-              Be the first to mint a badge and start your referral journey!
-            </p>
+        {/* Loading indicator for pagination */}
+        {isLoading && currentPage > 1 && (
+          <div className="mt-8 text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-purple-600 border-r-transparent"></div>
+            <p className="mt-2 text-sm text-gray-500">Loading more badges...</p>
           </div>
         )}
       </div>
