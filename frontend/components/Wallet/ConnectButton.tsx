@@ -1,16 +1,19 @@
 'use client';
 
 import { useWallet } from '@/hooks/useWallet';
+import { useRouter } from 'next/navigation';
 import { Menu, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import { ChevronDownIcon } from '@heroicons/react/20/solid';
 
 export function ConnectButton() {
   const { isConnected, shortAddress, balance, connect, disconnect } = useWallet();
+  const router = useRouter();
 
-  // Create a handler for disconnect
+  // Create a handler for disconnect with redirect to home
   const handleDisconnect = () => {
     disconnect();
+    router.push('/'); // Redirect to home page after disconnect
   };
 
   if (!isConnected) {
@@ -50,7 +53,7 @@ export function ConnectButton() {
             <Menu.Item>
               {({ active }) => (
                 <button
-                  onClick={handleDisconnect}  // Use the handler instead of disconnect directly
+                  onClick={handleDisconnect}
                   className={`${
                     active ? 'bg-red-500/10 text-red-600 dark:text-red-400' : ''
                   } group flex w-full items-center rounded-lg px-3 py-2 text-sm transition-colors`}

@@ -4,190 +4,324 @@ import { useState, useEffect } from 'react';
 import { ethers, JsonRpcProvider } from 'ethers';
 import { CONTRACT_ADDRESSES, REFERRAL_BADGE_ABI } from '@/lib/contract';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Fix 5 — Somnia RPC rejects eth_getLogs with block range > 1000
-//
-// The node returns: { code: -1, message: "block range exceeds 1000" }
-// for any eth_getLogs call whose (toBlock - fromBlock) exceeds 1000.
-//
-// Solution: paginate. Fetch logs in CHUNK_SIZE-block windows from the
-// contract's deploy block to the current head, accumulating results.
-//
-// BADGE_DEPLOY_BLOCK should be set in .env.local as
-//   NEXT_PUBLIC_BADGE_DEPLOY_BLOCK=<block number when ReferralBadge deployed>
-// If not set, falls back to current block - 200,000 as a conservative default.
-// The smaller this number is (i.e. the closer to the real deploy block), the
-// fewer chunks are needed and the faster the leaderboard loads.
-// ─────────────────────────────────────────────────────────────────────────────
-
 interface LeaderboardEntry {
   rank: number;
   address: string;
   referrals: number;
   tier: number;
+  tokenId: number;
 }
 
+interface CachedData {
+  leaders: LeaderboardEntry[];
+  totalParticipants: number;
+  timestamp: number;
+  timeframe: string;
+  totalBadges: number;
+}
+
+// ============ CONSTANTS ============
 const SOMNIA_NETWORK = { chainId: 50312, name: 'somniaTestnet' };
-const CHUNK_SIZE = 900; // safely under the 1000-block RPC limit
+const CACHE_KEY = 'leaderboard_cache';
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-const getReadOnlyProvider = () =>
-  new JsonRpcProvider(
-    process.env.NEXT_PUBLIC_SOMNIA_RPC || 'https://dream-rpc.somnia.network',
-    SOMNIA_NETWORK,
-    { staticNetwork: true }
-  );
-
-const timeframeCutoff = (timeframe: string): number => {
-  const now = Math.floor(Date.now() / 1000);
-  switch (timeframe) {
-    case 'day':   return now - 86_400;
-    case 'week':  return now - 7 * 86_400;
-    case 'month': return now - 30 * 86_400;
-    default:      return 0;
-  }
+// ============ PROVIDER ============
+const getReadOnlyProvider = () => {
+  const rpcUrl = process.env.NEXT_PUBLIC_SOMNIA_RPC || 'https://dream-rpc.somnia.network';
+  console.log(`🔌 [PROVIDER] Creating provider with RPC: ${rpcUrl}`);
+  return new JsonRpcProvider(rpcUrl, SOMNIA_NETWORK, { staticNetwork: true });
 };
 
-/**
- * Fetch all logs for a given filter by paginating in CHUNK_SIZE-block windows.
- * Somnia testnet rejects any eth_getLogs request spanning more than 1000 blocks.
- */
-async function getPaginatedLogs(
-  contract: ethers.Contract,
-  filter: ethers.ContractEventName,
-  fromBlock: number,
-  toBlock: number
-): Promise<ethers.EventLog[]> {
-  const allLogs: ethers.EventLog[] = [];
-
-  for (let start = fromBlock; start <= toBlock; start += CHUNK_SIZE) {
-    const end = Math.min(start + CHUNK_SIZE - 1, toBlock);
-    const chunk = await contract.queryFilter(filter, start, end);
-    allLogs.push(...(chunk as ethers.EventLog[]));
+// ============ CACHE UTILITIES ============
+function getCachedData(timeframe: string): CachedData | null {
+  console.log(`💾 [CACHE] Checking cache for timeframe: ${timeframe}`);
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+    
+    const data: CachedData = JSON.parse(cached);
+    const age = Date.now() - data.timestamp;
+    const isExpired = age >= CACHE_DURATION;
+    const isSameTimeframe = data.timeframe === timeframe;
+    
+    console.log(`💾 [CACHE] Found cached data:`, {
+      timeframe: data.timeframe,
+      entries: data.leaders.length,
+      age: `${Math.floor(age / 1000)}s`,
+      expired: isExpired,
+      sameTimeframe: isSameTimeframe
+    });
+    
+    if (isSameTimeframe && !isExpired) {
+      console.log(`✅ [CACHE] Using valid cached data`);
+      return data;
+    }
+    return null;
+  } catch (err) {
+    console.error(`💾 [CACHE] Failed to read cache:`, err);
+    return null;
   }
-
-  return allLogs;
 }
 
+function setCachedData(
+  leaders: LeaderboardEntry[],
+  totalParticipants: number,
+  timeframe: string,
+  totalBadges: number
+): void {
+  console.log(`💾 [CACHE] Saving data to cache for timeframe: ${timeframe}`);
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const data: CachedData = {
+      leaders,
+      totalParticipants,
+      timestamp: Date.now(),
+      timeframe,
+      totalBadges
+    };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+    console.log(`✅ [CACHE] Saved ${leaders.length} entries, expires in ${CACHE_DURATION / 1000}s`);
+  } catch (err) {
+    console.error(`💾 [CACHE] Failed to cache data:`, err);
+  }
+}
+
+// ============ OPTIMIZED LEADERBOARD HOOK - NO BLOCK SCANNING! ============
 export function useLeaderboard(timeframe: string = 'all') {
   const [leaders, setLeaders] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalParticipants, setTotalParticipants] = useState(0);
+  const [totalBadges, setTotalBadges] = useState(0);
+  const [debugInfo, setDebugInfo] = useState<any>({});
 
   useEffect(() => {
     let cancelled = false;
 
     const fetchLeaderboard = async () => {
+      const startTime = Date.now();
+      console.log(`\n${'='.repeat(60)}`);
+      console.log(`🏆 [LEADERBOARD] Starting fetch for timeframe: ${timeframe}`);
+      console.log(`${'='.repeat(60)}`);
+
+      // Check cache
+      const cached = getCachedData(timeframe);
+      if (cached) {
+        setLeaders(cached.leaders);
+        setTotalParticipants(cached.totalParticipants);
+        setTotalBadges(cached.totalBadges);
+        setIsLoading(false);
+        setDebugInfo({ source: 'cache', age: Date.now() - cached.timestamp });
+        console.log(`✅ [LEADERBOARD] Loaded from cache in 0ms`);
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
 
       try {
+        // Step 1: Initialize provider and contract
+        console.log(`\n📍 [STEP 1] Initializing provider and contract...`);
+        const providerStart = Date.now();
         const provider = getReadOnlyProvider();
-
         const badgeContract = new ethers.Contract(
           CONTRACT_ADDRESSES.referralBadge,
           REFERRAL_BADGE_ABI,
           provider
         );
+        console.log(`✅ [STEP 1] Ready in ${Date.now() - providerStart}ms`);
 
-        // Determine the block window to scan.
-        // For timeframes shorter than 'all', compute the approximate start block
-        // using Somnia's ~1 block/second rate to minimise the number of chunks.
-        const currentBlock = await provider.getBlockNumber();
-
-        let fromBlock: number;
-        if (timeframe === 'all') {
-          // Use the env-configured deploy block, or fall back to 200k blocks ago.
-          fromBlock = process.env.NEXT_PUBLIC_BADGE_DEPLOY_BLOCK
-            ? Number(process.env.NEXT_PUBLIC_BADGE_DEPLOY_BLOCK)
-            : Math.max(0, currentBlock - 200_000);
-        } else {
-          // Estimate blocks back based on seconds (Somnia ≈ 1 block/sec).
-          const secondsBack = {
-            day:   86_400,
-            week:  7 * 86_400,
-            month: 30 * 86_400,
-          }[timeframe] ?? 0;
-          fromBlock = Math.max(0, currentBlock - secondsBack);
-        }
-
-        // Paginate BadgeMinted logs across the full block range.
-        const mintedFilter = badgeContract.filters.BadgeMinted();
-        const mintedLogs = await getPaginatedLogs(
-          badgeContract,
-          mintedFilter,
-          fromBlock,
-          currentBlock
-        );
+        // Step 2: Get total badges count (ONE RPC CALL!)
+        console.log(`\n📍 [STEP 2] Fetching total badges count...`);
+        const totalStart = Date.now();
+        const total = await badgeContract.totalBadges();
+        const totalBadgesCount = Number(total);
+        setTotalBadges(totalBadgesCount);
+        console.log(`✅ [STEP 2] Total badges: ${totalBadgesCount} (${Date.now() - totalStart}ms)`);
 
         if (cancelled) return;
 
-        // Apply timestamp-based timeframe filter.
-        // For 'all' we skip this (cutoff = 0) to avoid N extra getBlock calls.
-        const cutoff = timeframeCutoff(timeframe);
-        let filteredLogs = mintedLogs;
-
-        if (cutoff > 0) {
-          const withTimestamps = await Promise.all(
-            mintedLogs.map(async (log) => {
-              const block = await provider.getBlock(log.blockNumber);
-              return block && block.timestamp >= cutoff ? log : null;
-            })
-          );
-          filteredLogs = withTimestamps.filter(Boolean) as ethers.EventLog[];
+        if (totalBadgesCount === 0) {
+          console.log(`⚠️ No badges found`);
+          setLeaders([]);
+          setTotalParticipants(0);
+          setIsLoading(false);
+          return;
         }
 
-        if (cancelled) return;
-
-        // Deduplicate by owner — keep the latest event per address.
-        const latestByOwner = new Map<string, ethers.EventLog>();
-        for (const log of filteredLogs) {
-          const owner = ethers.getAddress('0x' + log.topics[1].slice(26));
-          latestByOwner.set(owner, log);
-        }
-
-        // Fetch badge data for every unique owner in parallel.
-        // badgeData.referralCount is the correct source (Fix 1 from previous session).
-        const entries = await Promise.all(
-          [...latestByOwner.keys()].map(async (owner) => {
+        // Step 3: Fetch all badge owners in BATCHES (MUCH FASTER than logs!)
+        console.log(`\n📍 [STEP 3] Fetching badge owners for all ${totalBadgesCount} tokens...`);
+        const ownersStart = Date.now();
+        
+        // Create an array of token IDs (1 to totalBadgesCount)
+        const tokenIds = Array.from({ length: totalBadgesCount }, (_, i) => i + 1);
+        
+        // BATCH the owner queries to avoid rate limits
+        const BATCH_SIZE = 50;
+        const totalBatches = Math.ceil(tokenIds.length / BATCH_SIZE);
+        
+        const ownersByToken: Map<number, string> = new Map();
+        let processedTokens = 0;
+        let failedTokens = 0;
+        
+        console.log(`   Total tokens: ${tokenIds.length}, batches: ${totalBatches}`);
+        
+        for (let i = 0; i < tokenIds.length; i += BATCH_SIZE) {
+          const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+          const batch = tokenIds.slice(i, i + BATCH_SIZE);
+          
+          console.log(`   Batch ${batchNum}/${totalBatches}: fetching owners for tokens ${batch[0]}-${batch[batch.length - 1]}...`);
+          const batchStart = Date.now();
+          
+          const batchPromises = batch.map(async (tokenId) => {
             try {
-              const badgeData = await badgeContract.getUserBadge(owner);
-              return {
-                rank: 0,
-                address: owner,
-                referrals: Number(badgeData.referralCount),
-                tier: Number(badgeData.tier),
-              } satisfies LeaderboardEntry;
-            } catch {
+              const owner = await badgeContract.ownerOf(tokenId);
+              return { tokenId, owner };
+            } catch (err) {
+              console.warn(`   ⚠️ Failed to fetch owner for token ${tokenId}:`, err);
+              failedTokens++;
               return null;
             }
-          })
-        );
+          });
+          
+          const batchResults = await Promise.all(batchPromises);
+          let batchSuccess = 0;
+          
+          for (const result of batchResults) {
+            if (result) {
+              ownersByToken.set(result.tokenId, result.owner);
+              batchSuccess++;
+            }
+          }
+          
+          processedTokens += batch.length;
+          console.log(`   ✅ Batch ${batchNum}/${totalBatches}: ${batchSuccess}/${batch.length} successful (${Date.now() - batchStart}ms)`);
+          console.log(`   📊 Progress: ${processedTokens}/${tokenIds.length} tokens processed, ${failedTokens} failed`);
+          
+          // Small delay to avoid rate limiting
+          if (i + BATCH_SIZE < tokenIds.length) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+        }
+        
+        const ownersTime = Date.now() - ownersStart;
+        console.log(`✅ [STEP 3] Fetched ${ownersByToken.size} owners in ${ownersTime}ms (${failedTokens} failed)`);
 
         if (cancelled) return;
 
-        const valid = entries.filter((e): e is LeaderboardEntry => e !== null);
+        // Step 4: Get unique users and their latest badge
+        console.log(`\n📍 [STEP 4] Aggregating users by latest badge...`);
+        const aggStart = Date.now();
+        
+        // Map: user address -> { latestTokenId, referrals, tier }
+        const userMap = new Map<string, { tokenId: number; referrals: number; tier: number }>();
+        
+        for (const [tokenId, owner] of ownersByToken.entries()) {
+          const existing = userMap.get(owner);
+          if (!existing || existing.tokenId < tokenId) {
+            // Fetch badge data for this token
+            try {
+              const badgeData = await badgeContract.getBadge(tokenId);
+              userMap.set(owner, {
+                tokenId,
+                referrals: Number(badgeData.referralCount),
+                tier: Number(badgeData.tier)
+              });
+            } catch (err) {
+              console.warn(`   ⚠️ Failed to fetch badge data for token ${tokenId}:`, err);
+            }
+          }
+        }
+        
+        console.log(`✅ [STEP 4] Aggregated ${userMap.size} unique users (${Date.now() - aggStart}ms)`);
 
-        const sorted = valid
+        if (cancelled) return;
+
+        // Step 5: Convert to leaderboard entries
+        console.log(`\n📍 [STEP 5] Creating leaderboard entries...`);
+        const entries: LeaderboardEntry[] = [];
+        
+        for (const [address, data] of userMap.entries()) {
+          entries.push({
+            rank: 0,
+            address,
+            referrals: data.referrals,
+            tier: data.tier,
+            tokenId: data.tokenId
+          });
+        }
+        
+        console.log(`✅ [STEP 5] Created ${entries.length} entries`);
+
+        // Step 6: Sort and rank
+        console.log(`\n📍 [STEP 6] Sorting and ranking...`);
+        const sortStart = Date.now();
+        
+        // Sort by referrals (descending)
+        const sortedEntries = entries
           .sort((a, b) => b.referrals - a.referrals)
           .map((entry, index) => ({ ...entry, rank: index + 1 }))
-          .slice(0, 100);
+          .slice(0, 100); // Top 100 only
+        
+        console.log(`✅ [STEP 6] Sorted ${sortedEntries.length} entries (${Date.now() - sortStart}ms)`);
+        if (sortedEntries.length > 0) {
+          console.log(`   🥇 Top referrer: ${sortedEntries[0].address.slice(0, 8)}... with ${sortedEntries[0].referrals} referrals`);
+          console.log(`   🥈 Second: ${sortedEntries[1]?.address.slice(0, 8)}... with ${sortedEntries[1]?.referrals || 0} referrals`);
+          console.log(`   🥉 Third: ${sortedEntries[2]?.address.slice(0, 8)}... with ${sortedEntries[2]?.referrals || 0} referrals`);
+        }
 
-        setLeaders(sorted);
-        setTotalParticipants(sorted.length);
+        // Step 7: Cache and update state
+        console.log(`\n📍 [STEP 7] Caching and updating state...`);
+        const totalTime = Date.now() - startTime;
+        
+        setCachedData(sortedEntries, sortedEntries.length, timeframe, totalBadgesCount);
+        setLeaders(sortedEntries);
+        setTotalParticipants(sortedEntries.length);
+        
+        setDebugInfo({
+          source: 'live',
+          totalTime,
+          totalBadges: totalBadgesCount,
+          uniqueUsers: userMap.size,
+          entriesProcessed: entries.length,
+          topReferral: sortedEntries[0]?.referrals || 0
+        });
+        
+        console.log(`✅ [STEP 7] State updated`);
+        console.log(`\n${'='.repeat(60)}`);
+        console.log(`🎉 [LEADERBOARD] Complete! Total time: ${totalTime}ms`);
+        console.log(`   Total badges scanned: ${totalBadgesCount}`);
+        console.log(`   Unique users: ${userMap.size}`);
+        console.log(`   Leaderboard entries: ${sortedEntries.length}`);
+        console.log(`   Top referral count: ${sortedEntries[0]?.referrals || 0}`);
+        console.log(`${'='.repeat(60)}\n`);
+
       } catch (err: any) {
+        console.error(`\n❌ [LEADERBOARD] FATAL ERROR:`);
+        console.error(`   Message: ${err.message}`);
+        console.error(`   Stack: ${err.stack}`);
+        console.error(`   Code: ${err.code}`);
+        
         if (!cancelled) {
-          console.error('Error fetching leaderboard:', err);
           setError(err.message || 'Failed to load leaderboard');
         }
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          console.log(`🏁 [LEADERBOARD] Fetch completed, isLoading: false`);
+          setIsLoading(false);
+        }
       }
     };
 
     fetchLeaderboard();
-    return () => { cancelled = true; };
+    return () => { 
+      console.log(`🛑 [LEADERBOARD] Cancelled for timeframe: ${timeframe}`);
+      cancelled = true; 
+    };
   }, [timeframe]);
 
-  return { leaders, isLoading, error, totalParticipants };
+  return { leaders, isLoading, error, totalParticipants, totalBadges, debugInfo };
 }

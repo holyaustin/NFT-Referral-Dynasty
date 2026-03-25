@@ -27,7 +27,7 @@
     "react-dom": "19.2.3",
     "react-hot-toast": "^2.6.0",
     "react-intersection-observer": "^10.0.3",
-    "viem": "^2.37.8",
+    "viem": "^2.47.6",
     "wagmi": "^3.5.0"
   },
   "devDependencies": {
