@@ -5,7 +5,7 @@ A revolutionary referral system where users earn **evolving NFT badges** and **i
 ## 🏆 **Hackathon Submission** - Somnia Reactivity Mini Hackathon
 
 **Live Demo:** [https://nft-referral-dynasty.vercel.app/](https://nft-referral-dynasty.vercel.app)
-**Project Video:** [Watch Demo](https://youtu.be/ambcJknx6iE)
+**Project Video:** [Watch Demo](https://youtu.be/cofjbr2RaXQ)
 
 ---
 
@@ -184,7 +184,7 @@ function _onEvent(address emitter, bytes32[] calldata topics, bytes calldata) {
 
 ## 📊 Demo Video
 
-[![Referral Dynasty Demo](https://img.youtube.com/vi/your-video-id/0.jpg)](https://youtu.be/your-video-id)
+[![Referral Dynasty Demo]](https://youtu.be/cofjbr2RaXQ)
 
 ## 🏆 Why This Wins
 
@@ -238,7 +238,7 @@ MIT
 
 - **Project Lead:** [Augustine](https://twitter.com/holyaustin)
 - **GitHub:** [https://github.com/holyaustine/nft-referral-dynasty](https://github.com/holyaustin/nft-referral-dynasty)
-- **Demo Video:** [YouTube Link](https://youtu.be/your-video)
+- **Demo Video:** [YouTube Link](https://youtu.be/cofjbr2RaXQ)
 
 ---
 
