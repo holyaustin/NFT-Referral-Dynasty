@@ -5,7 +5,7 @@ A revolutionary referral system where users earn **evolving NFT badges** and **i
 ## 🏆 **Hackathon Submission** - Somnia Reactivity Mini Hackathon
 
 **Live Demo:** [https://nft-referral-dynasty.vercel.app/](https://nft-referral-dynasty.vercel.app)
-**Project Video:** [Watch Demo](https://youtu.be/your-video-link)
+**Project Video:** [Watch Demo](https://youtu.be/ambcJknx6iE)
 
 ---
 

@@ -12,18 +12,8 @@ interface LeaderboardEntry {
   tokenId: number;
 }
 
-interface CachedData {
-  leaders: LeaderboardEntry[];
-  totalParticipants: number;
-  timestamp: number;
-  timeframe: string;
-  totalBadges: number;
-}
-
 // ============ CONSTANTS ============
 const SOMNIA_NETWORK = { chainId: 50312, name: 'somniaTestnet' };
-const CACHE_KEY = 'leaderboard_cache';
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // ============ PROVIDER ============
 const getReadOnlyProvider = () => {
@@ -32,64 +22,7 @@ const getReadOnlyProvider = () => {
   return new JsonRpcProvider(rpcUrl, SOMNIA_NETWORK, { staticNetwork: true });
 };
 
-// ============ CACHE UTILITIES ============
-function getCachedData(timeframe: string): CachedData | null {
-  console.log(`💾 [CACHE] Checking cache for timeframe: ${timeframe}`);
-  if (typeof window === 'undefined') return null;
-  
-  try {
-    const cached = localStorage.getItem(CACHE_KEY);
-    if (!cached) return null;
-    
-    const data: CachedData = JSON.parse(cached);
-    const age = Date.now() - data.timestamp;
-    const isExpired = age >= CACHE_DURATION;
-    const isSameTimeframe = data.timeframe === timeframe;
-    
-    console.log(`💾 [CACHE] Found cached data:`, {
-      timeframe: data.timeframe,
-      entries: data.leaders.length,
-      age: `${Math.floor(age / 1000)}s`,
-      expired: isExpired,
-      sameTimeframe: isSameTimeframe
-    });
-    
-    if (isSameTimeframe && !isExpired) {
-      console.log(`✅ [CACHE] Using valid cached data`);
-      return data;
-    }
-    return null;
-  } catch (err) {
-    console.error(`💾 [CACHE] Failed to read cache:`, err);
-    return null;
-  }
-}
-
-function setCachedData(
-  leaders: LeaderboardEntry[],
-  totalParticipants: number,
-  timeframe: string,
-  totalBadges: number
-): void {
-  console.log(`💾 [CACHE] Saving data to cache for timeframe: ${timeframe}`);
-  if (typeof window === 'undefined') return;
-  
-  try {
-    const data: CachedData = {
-      leaders,
-      totalParticipants,
-      timestamp: Date.now(),
-      timeframe,
-      totalBadges
-    };
-    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-    console.log(`✅ [CACHE] Saved ${leaders.length} entries, expires in ${CACHE_DURATION / 1000}s`);
-  } catch (err) {
-    console.error(`💾 [CACHE] Failed to cache data:`, err);
-  }
-}
-
-// ============ OPTIMIZED LEADERBOARD HOOK - NO BLOCK SCANNING! ============
+// ============ OPTIMIZED LEADERBOARD HOOK - NO CACHE! ============
 export function useLeaderboard(timeframe: string = 'all') {
   const [leaders, setLeaders] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -104,20 +37,8 @@ export function useLeaderboard(timeframe: string = 'all') {
     const fetchLeaderboard = async () => {
       const startTime = Date.now();
       console.log(`\n${'='.repeat(60)}`);
-      console.log(`🏆 [LEADERBOARD] Starting fetch for timeframe: ${timeframe}`);
+      console.log(`🏆 [LEADERBOARD] Starting FRESH fetch for timeframe: ${timeframe}`);
       console.log(`${'='.repeat(60)}`);
-
-      // Check cache
-      const cached = getCachedData(timeframe);
-      if (cached) {
-        setLeaders(cached.leaders);
-        setTotalParticipants(cached.totalParticipants);
-        setTotalBadges(cached.totalBadges);
-        setIsLoading(false);
-        setDebugInfo({ source: 'cache', age: Date.now() - cached.timestamp });
-        console.log(`✅ [LEADERBOARD] Loaded from cache in 0ms`);
-        return;
-      }
 
       setIsLoading(true);
       setError(null);
@@ -273,11 +194,12 @@ export function useLeaderboard(timeframe: string = 'all') {
           console.log(`   🥉 Third: ${sortedEntries[2]?.address.slice(0, 8)}... with ${sortedEntries[2]?.referrals || 0} referrals`);
         }
 
-        // Step 7: Cache and update state
-        console.log(`\n📍 [STEP 7] Caching and updating state...`);
+        // Step 7: Update state (NO CACHING!)
+        console.log(`\n📍 [STEP 7] Updating state...`);
         const totalTime = Date.now() - startTime;
         
-        setCachedData(sortedEntries, sortedEntries.length, timeframe, totalBadgesCount);
+        // REMOVED: setCachedData(...) - No more caching!
+        
         setLeaders(sortedEntries);
         setTotalParticipants(sortedEntries.length);
         
